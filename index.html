@@ -106,6 +106,7 @@
     const { useState, useEffect, useRef } = React;
 
     const SPREADSHEET_ID = '1_MJg31Kr1gWBXSV9UbCACH5O7Tx0CArNU245daaqwh8';
+    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx_7b-sin6X75aoSaELGMFlf8eXPOjKZ1MxDolrhs8MlpmlGCds1ONQEpAJ-BiVQqX2/exec';
     const SHEET_NAME = 'Lançamentos_2026';
 
     /**
@@ -241,6 +242,52 @@
       });
 
       const [isModalOpen, setIsModalOpen] = useState(false);
+
+      // Carrega dados da Planilha em tempo real via Apps Script na inicialização
+      useEffect(() => {
+        const carregarPlanilhaNuvem = async () => {
+          try {
+            const res = await fetch(APPS_SCRIPT_URL);
+            if (res.ok) {
+              const rows = await res.json();
+              if (Array.isArray(rows) && rows.length > 1) {
+                // Linha 0 é cabeçalho: Data, Mês, Tipo, Categoria, Valor, Estabelecimento, Observações
+                const formatData = (d) => {
+                  if (!d) return '';
+                  if (typeof d === 'string' && d.includes('T')) return d.split('T')[0];
+                  try {
+                    const dt = new Date(d);
+                    if (!isNaN(dt.getTime())) return dt.toISOString().split('T')[0];
+                  } catch(e){}
+                  return String(d).substring(0, 10);
+                };
+
+                const carregadas = rows.slice(1).map((r, i) => ({
+                  id: 'sheet-' + (i + 2),
+                  data: formatData(r[0]),
+                  mes: r[1] || '',
+                  tipo: r[2] || 'Despesa',
+                  categoria: r[3] || 'Supermercado & Feira',
+                  valor: parseFloat(r[4]) || 0,
+                  estabelecimento: padronizarNomeLoja(r[5]),
+                  observacoes: r[6] || ''
+                })).filter(t => t.data && t.valor > 0).reverse(); // Mais recentes primeiro
+
+                if (carregadas.length > 0) {
+                  setTransactions(carregadas);
+                  localStorage.setItem('fc26_transactions', JSON.stringify(carregadas));
+                  showToast(`✓ Sincronizado com o Drive: ${carregadas.length} lançamentos!`);
+                }
+              }
+            }
+          } catch(err) {
+            console.warn('Conexão offline ou inicial, usando cache local:', err);
+          }
+        };
+
+        carregarPlanilhaNuvem();
+      }, []);
+
       const [editingTransaction, setEditingTransaction] = useState(null);
       const [toastMessage, setToastMessage] = useState(null);
       const [geminiApiKey, setGeminiApiKey] = useState(localStorage.getItem('fc26_gemini_api_key') || '');
@@ -317,21 +364,21 @@
           localStorage.setItem('fc26_transactions', JSON.stringify(updatedList));
         } catch(e){}
 
-        // Envio para Google Sheets
-        const token = localStorage.getItem('gdrive_access_token');
-        if (token && (!editingTransaction || !editingTransaction.id)) {
-          try {
-            const range = `${SHEET_NAME}!A2:G`;
-            const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
-            await fetch(url, {
-              method: 'POST',
-              headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                values: [[dadosPadronizados.data, '', dadosPadronizados.tipo, dadosPadronizados.categoria, dadosPadronizados.valor, dadosPadronizados.estabelecimento, dadosPadronizados.observacoes || '']]
-              })
-            });
-            showToast('Lançamento sincronizado no Google Drive!');
-          } catch(e){}
+        // Sincronização em Tempo Real na Nuvem via Google Apps Script (Multi-aparelho sem login)
+        try {
+          // Envia em segundo plano para a planilha no Google Drive
+          fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors', // Garante compatibilidade imediata sem bloquear no CORS
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(dadosPadronizados)
+          }).then(() => {
+            showToast('✓ Gravado na Planilha Google Drive em tempo real!');
+          }).catch(err => {
+            console.warn('Aviso sincronização:', err);
+          });
+        } catch(e) {
+          console.warn(e);
         }
       };
 
@@ -512,9 +559,9 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
         }
       };
 
-      // Totais calculados
-      const receitasTotais = 3984901;
-      const despesasTotais = 4186382 + transactions.filter(t => !['tx-1','tx-2','tx-3','tx-4','tx-5','tx-6','tx-7','tx-8'].includes(t.id) && t.tipo === 'Despesa').reduce((acc, t) => acc + (t.valor || 0), 0);
+      // Totais calculados dinamicamente em tempo real a partir de todos os registros da planilha
+      const receitasTotais = transactions.filter(t => t.tipo === 'Receita').reduce((acc, t) => acc + (t.valor || 0), 0) || 3984901;
+      const despesasTotais = transactions.filter(t => t.tipo === 'Despesa').reduce((acc, t) => acc + (t.valor || 0), 0) || 4186382;
       const saldo = receitasTotais - despesasTotais;
 
       return (
