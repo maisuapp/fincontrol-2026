@@ -131,6 +131,14 @@
       { regex: /児童手当|出雲市/i, nomeOficial: '出雲市 (Benefício)' },
     ];
 
+    
+    function isDespesaTx(t) {
+      if (!t) return true;
+      const str = String(t.tipo || '').trim().toLowerCase();
+      if (str.includes('receita')) return false;
+      return true;
+    }
+
     function padronizarNomeLoja(nomeBruto) {
       if (!nomeBruto || typeof nomeBruto !== 'string') return 'TRIAL スーパー';
       const limpo = nomeBruto.trim();
@@ -266,7 +274,7 @@
                   id: 'sheet-' + (i + 2),
                   data: formatData(r[0]),
                   mes: r[1] || '',
-                  tipo: r[2] || 'Despesa',
+                  tipo: String(r[2] || '').trim().toLowerCase().includes('receita') ? 'Receita' : 'Despesa',
                   categoria: r[3] || 'Supermercado & Feira',
                   valor: parseFloat(r[4]) || 0,
                   estabelecimento: padronizarNomeLoja(r[5]),
@@ -560,8 +568,8 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
       };
 
       // Totais calculados dinamicamente em tempo real a partir de todos os registros da planilha
-      const receitasTotais = transactions.filter(t => t.tipo === 'Receita').reduce((acc, t) => acc + (t.valor || 0), 0) || 3984901;
-      const despesasTotais = transactions.filter(t => t.tipo === 'Despesa').reduce((acc, t) => acc + (t.valor || 0), 0) || 4186382;
+      const receitasTotais = transactions.filter(t => !isDespesaTx(t)).reduce((acc, t) => acc + (t.valor || 0), 0) || 3984901;
+      const despesasTotais = transactions.filter(t => isDespesaTx(t)).reduce((acc, t) => acc + (t.valor || 0), 0) || 4186382;
       const saldo = receitasTotais - despesasTotais;
 
       return (
@@ -771,8 +779,8 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                       className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs flex justify-between items-center text-xs active:bg-slate-50 transition cursor-pointer"
                     >
                       <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 font-bold text-sm ${t.tipo === 'Despesa' ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                          {t.tipo === 'Despesa' ? '↓' : '↑'}
+                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 font-bold text-sm ${isDespesaTx(t) ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                          {isDespesaTx(t) ? '↓' : '↑'}
                         </div>
                         <div className="min-w-0">
                           {/* Nome Padronizado do Estabelecimento */}
@@ -782,8 +790,8 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                       </div>
                       
                       <div className="flex items-center gap-2 shrink-0">
-                        <span className={`font-bold text-sm ${t.tipo === 'Despesa' ? 'text-slate-900' : 'text-emerald-600'}`}>
-                          {t.tipo === 'Despesa' ? '-' : '+'}¥ {Math.round(t.valor).toLocaleString('ja-JP')}
+                        <span className={`font-bold text-sm ${isDespesaTx(t) ? 'text-slate-900' : 'text-emerald-600'}`}>
+                          {isDespesaTx(t) ? '-' : '+'}¥ {Math.round(t.valor).toLocaleString('ja-JP')}
                         </span>
                         <span className="text-slate-400 text-sm font-bold pl-1">›</span>
                       </div>
