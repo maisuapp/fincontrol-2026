@@ -250,6 +250,11 @@
       });
 
       const [isModalOpen, setIsModalOpen] = useState(false);
+      // Estados dos Filtros na aba Lançamentos
+      const [filtroTipo, setFiltroTipo] = useState('todos'); // 'todos', 'despesa', 'receita'
+      const [filtroCategoria, setFiltroCategoria] = useState('todas');
+      const [filtroMes, setFiltroMes] = useState('todos');
+      const [termoBusca, setTermoBusca] = useState('');
 
       // Carrega dados da Planilha em tempo real via Apps Script na inicialização
       useEffect(() => {
@@ -750,68 +755,238 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
               </div>
             )}
 
-            {/* ABA 2: LANÇAMENTOS (Com Exportação para Excel e Estabelecimentos Padronizados) */}
-            {currentTab === 'lancamentos' && (
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h2 className="text-base font-serif font-bold text-slate-900">Últimos Lançamentos</h2>
-                    <p className="text-[11px] text-slate-400">Toque em qualquer card para editar ou excluir</p>
-                  </div>
-                  
-                  {/* Botão de Exportar Backup em Excel (.xlsx) */}
-                  <button
-                    type="button"
-                    onClick={handleExportExcel}
-                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm active:scale-95 transition"
-                    title="Baixar Backup em Excel (.xlsx)"
-                  >
-                    <span>📊</span>
-                    <span>Exportar Excel</span>
-                  </button>
-                </div>
+            {/* ABA 2: LANÇAMENTOS (Com Filtros Inteligentes por Tipo, Categoria e Mês) */}
+            {currentTab === 'lancamentos' && (() => {
+              // Aplica todos os filtros de forma combinada
+              const listaFiltrada = transactions.filter((t) => {
+                const isDesp = isDespesaTx(t);
+                
+                // Filtro de Tipo (Todos / Despesas / Receitas)
+                if (filtroTipo === 'despesa' && !isDesp) return false;
+                if (filtroTipo === 'receita' && isDesp) return false;
 
-                <div className="space-y-2">
-                  {transactions.map((t) => (
-                    <div
-                      key={t.id}
-                      onClick={() => { setEditingTransaction(t); setIsModalOpen(true); }}
-                      className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs flex justify-between items-center text-xs active:bg-slate-50 transition cursor-pointer"
+                // Filtro de Categoria
+                if (filtroCategoria !== 'todas' && t.categoria !== filtroCategoria) return false;
+
+                // Filtro de Mês (baseado na data YYYY-MM)
+                if (filtroMes !== 'todos') {
+                  if (!t.data || !t.data.includes(filtroMes)) return false;
+                }
+
+                // Filtro de Busca por texto (estabelecimento, categoria, data ou observação)
+                if (termoBusca.trim()) {
+                  const busca = termoBusca.toLowerCase().trim();
+                  const conteudo = `${t.estabelecimento} ${t.categoria} ${t.data} ${t.observacoes || ''}`.toLowerCase();
+                  if (!conteudo.includes(busca)) return false;
+                }
+
+                return true;
+              });
+
+              // Subtotal dinâmico dos itens filtrados
+              const subtotalDespesas = listaFiltrada.filter(t => isDespesaTx(t)).reduce((acc, t) => acc + (t.valor || 0), 0);
+              const subtotalReceitas = listaFiltrada.filter(t => !isDespesaTx(t)).reduce((acc, t) => acc + (t.valor || 0), 0);
+              const temFiltroAtivo = filtroTipo !== 'todos' || filtroCategoria !== 'todas' || filtroMes !== 'todos' || termoBusca.trim() !== '';
+
+              // Lista de categorias únicas presentes nos lançamentos
+              const todasCategorias = Array.from(new Set(transactions.map(t => t.categoria).filter(Boolean))).sort();
+
+              return (
+                <div className="space-y-3.5">
+                  
+                  {/* Topo da Aba */}
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h2 className="text-base font-serif font-bold text-slate-900">Lançamentos</h2>
+                      <p className="text-[11px] text-slate-400">Filtre, pesquise ou edite qualquer registro</p>
+                    </div>
+                    
+                    {/* Botão de Exportar Backup em Excel (.xlsx) */}
+                    <button
+                      type="button"
+                      onClick={handleExportExcel}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs active:scale-95 transition"
+                      title="Baixar Backup em Excel (.xlsx)"
                     >
-                      <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 font-bold text-sm ${isDespesaTx(t) ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                          {isDespesaTx(t) ? '↓' : '↑'}
-                        </div>
-                        <div className="min-w-0">
-                          {/* Nome Padronizado do Estabelecimento */}
-                          <h4 className="font-bold text-slate-800 text-sm truncate">{t.estabelecimento}</h4>
-                          <p className="text-slate-400 text-[11px] truncate">{t.data} • {t.categoria}</p>
-                        </div>
+                      <span>📊</span>
+                      <span>Excel</span>
+                    </button>
+                  </div>
+
+                  {/* PAINEL DE FILTROS RESPONSIVO */}
+                  <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-xs space-y-3">
+                    
+                    {/* 1. Barra de Busca por Texto */}
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
+                      <input
+                        type="text"
+                        placeholder="Buscar loja (Trial, Anri...), nota..."
+                        value={termoBusca}
+                        onChange={(e) => setTermoBusca(e.target.value)}
+                        className="w-full pl-9 pr-7 py-2 bg-slate-50 border border-slate-200 focus:border-[#0F2C59] rounded-xl text-xs outline-none transition"
+                      />
+                      {termoBusca && (
+                        <button
+                          type="button"
+                          onClick={() => setTermoBusca('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold p-1"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+
+                    {/* 2. Pílulas Rápidas de Tipo (Todos / Despesas / Receitas) */}
+                    <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+                      <button
+                        type="button"
+                        onClick={() => setFiltroTipo('todos')}
+                        className={`py-1.5 rounded-lg transition ${filtroTipo === 'todos' ? 'bg-white text-[#0F2C59] shadow-xs font-bold' : 'text-slate-500'}`}
+                      >
+                        Todos ({transactions.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFiltroTipo('despesa')}
+                        className={`py-1.5 rounded-lg transition ${filtroTipo === 'despesa' ? 'bg-white text-rose-600 shadow-xs font-bold' : 'text-slate-500'}`}
+                      >
+                        ↓ Despesas
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFiltroTipo('receita')}
+                        className={`py-1.5 rounded-lg transition ${filtroTipo === 'receita' ? 'bg-white text-emerald-600 shadow-xs font-bold' : 'text-slate-500'}`}
+                      >
+                        ↑ Receitas
+                      </button>
+                    </div>
+
+                    {/* 3. Dropdowns Lado a Lado: Mês e Categoria */}
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      {/* Seletor de Mês */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Mês</label>
+                        <select
+                          value={filtroMes}
+                          onChange={(e) => setFiltroMes(e.target.value)}
+                          className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-[#0F2C59] font-medium text-slate-700"
+                        >
+                          <option value="todos">Todos os meses</option>
+                          <option value="-09-">Setembro (Atual)</option>
+                          <option value="-08-">Agosto</option>
+                          <option value="-07-">Julho</option>
+                          <option value="-06-">Junho</option>
+                          <option value="-05-">Maio</option>
+                          <option value="-04-">Abril</option>
+                          <option value="-03-">Março</option>
+                          <option value="-02-">Fevereiro</option>
+                          <option value="-01-">Janeiro</option>
+                        </select>
                       </div>
-                      
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className={`font-bold text-sm ${isDespesaTx(t) ? 'text-slate-900' : 'text-emerald-600'}`}>
-                          {isDespesaTx(t) ? '-' : '+'}¥ {Math.round(t.valor).toLocaleString('ja-JP')}
-                        </span>
-                        <span className="text-slate-400 text-sm font-bold pl-1">›</span>
+
+                      {/* Seletor de Categoria */}
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Categoria</label>
+                        <select
+                          value={filtroCategoria}
+                          onChange={(e) => setFiltroCategoria(e.target.value)}
+                          className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-[#0F2C59] font-medium text-slate-700 truncate"
+                        >
+                          <option value="todas">Todas as categorias</option>
+                          {todasCategorias.map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </select>
                       </div>
                     </div>
-                  ))}
-                </div>
 
-                {/* Botão de Backup no final da lista */}
-                <div className="pt-2">
-                  <button
-                    type="button"
-                    onClick={handleExportExcel}
-                    className="w-full py-2.5 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition"
-                  >
-                    <span>📥</span>
-                    <span>Salvar Backup de Segurança (.xlsx)</span>
-                  </button>
+                    {/* Barra de Subtotal dos itens filtrados e botão Limpar */}
+                    <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-[11px]">
+                      <div className="text-slate-500 font-medium">
+                        Mostrando <strong>{listaFiltrada.length}</strong> {listaFiltrada.length === 1 ? 'item' : 'itens'}
+                        {filtroTipo === 'despesa' && (
+                          <span className="text-rose-600 font-bold ml-1.5">• Total: -¥ {subtotalDespesas.toLocaleString('ja-JP')}</span>
+                        )}
+                        {filtroTipo === 'receita' && (
+                          <span className="text-emerald-600 font-bold ml-1.5">• Total: +¥ {subtotalReceitas.toLocaleString('ja-JP')}</span>
+                        )}
+                        {filtroTipo === 'todos' && (
+                          <span className="text-slate-700 font-bold ml-1.5">
+                            • Desp: ¥ {subtotalDespesas.toLocaleString('ja-JP')}
+                          </span>
+                        )}
+                      </div>
+
+                      {temFiltroAtivo && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFiltroTipo('todos');
+                            setFiltroCategoria('todas');
+                            setFiltroMes('todos');
+                            setTermoBusca('');
+                          }}
+                          className="text-[#0F2C59] hover:underline font-bold text-[11px]"
+                        >
+                          Limpar filtros
+                        </button>
+                      )}
+                    </div>
+
+                  </div>
+
+                  {/* LISTA DE CARTÕES FILTRADOS */}
+                  <div className="space-y-2">
+                    {listaFiltrada.length === 0 ? (
+                      <div className="bg-white rounded-2xl p-6 text-center text-slate-400 text-xs border border-slate-200 space-y-1">
+                        <div className="text-2xl mb-1">🔍</div>
+                        <p className="font-bold text-slate-600">Nenhum lançamento encontrado</p>
+                        <p>Tente ajustar os filtros de tipo, mês ou categoria acima.</p>
+                      </div>
+                    ) : (
+                      listaFiltrada.map((t) => (
+                        <div
+                          key={t.id}
+                          onClick={() => { setEditingTransaction(t); setIsModalOpen(true); }}
+                          className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs flex justify-between items-center text-xs active:bg-slate-50 transition cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 font-bold text-sm ${isDespesaTx(t) ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                              {isDespesaTx(t) ? '↓' : '↑'}
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className="font-bold text-slate-800 text-sm truncate">{t.estabelecimento}</h4>
+                              <p className="text-slate-400 text-[11px] truncate">{t.data} • {t.categoria}</p>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className={`font-bold text-sm ${isDespesaTx(t) ? 'text-slate-900' : 'text-emerald-600'}`}>
+                              {isDespesaTx(t) ? '-' : '+'}¥ {Math.round(t.valor).toLocaleString('ja-JP')}
+                            </span>
+                            <span className="text-slate-400 text-sm font-bold pl-1">›</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  {/* Botão de Backup no final da lista */}
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={handleExportExcel}
+                      className="w-full py-2.5 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition active:scale-98"
+                    >
+                      <span>📥</span>
+                      <span>Salvar Backup de Segurança (.xlsx)</span>
+                    </button>
+                  </div>
+
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* ABA 3: CONEXÃO COM BACKUP E CHAVE */}
             {currentTab === 'config' && (
