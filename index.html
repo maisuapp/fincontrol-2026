@@ -344,10 +344,22 @@
         }
       });
 
-      const chaveMesAtual = `${anoCalendario}_${mesCalendario + 1}`;
+      const chaveMesAtual = `${perfilEscala}_${anoCalendario}_${mesCalendario + 1}`;
       const escalaMes = todasEscalas[chaveMesAtual] || {};
 
       const [carimboAtivo, setCarimboAtivo] = useState(null);
+
+      // Perfil do Calendário: Permite que você e sua esposa tenham escalas 100% independentes
+      const [perfilEscala, setPerfilEscala] = useState(() => {
+        return localStorage.getItem('fc26_perfil_escala') || 'usuario';
+      });
+
+      const trocarPerfilEscala = (novoPerfil) => {
+        setPerfilEscala(novoPerfil);
+        try {
+          localStorage.setItem('fc26_perfil_escala', novoPerfil);
+        } catch(e){}
+      };
 
       // Navegação de Meses
       const handleMesAnterior = () => {
@@ -792,6 +804,35 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                   return (
                     <div className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-xs space-y-3">
                       
+                      {/* SELETOR DE PERFIL INDEPENDENTE (Você vs. Esposa) */}
+                      <div className="flex justify-between items-center bg-slate-100 p-1 rounded-2xl">
+                        <button
+                          type="button"
+                          onClick={() => trocarPerfilEscala('usuario')}
+                          className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                            perfilEscala === 'usuario'
+                              ? 'bg-white text-[#0F2C59] shadow-xs'
+                              : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                        >
+                          <span>👤</span>
+                          <span>Minha Escala</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => trocarPerfilEscala('esposa')}
+                          className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                            perfilEscala === 'esposa'
+                              ? 'bg-white text-rose-600 shadow-xs'
+                              : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                        >
+                          <span>👩</span>
+                          <span>Escala da Esposa</span>
+                        </button>
+                      </div>
+
                       {/* Cabeçalho com Navegação << Mês >> e Transição Automática */}
                       <div className="flex justify-between items-center pb-2 border-b border-slate-100">
                         <div className="flex items-center gap-2">
@@ -904,6 +945,21 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                               ) : (
                                 <span className="text-[9px] text-transparent leading-none">•</span>
                               )}
+
+                              {/* Indicador de Folga em Comum do Casal (Quando ambos têm '休' no mesmo dia) */}
+                              {(() => {
+                                const minhaFolga = todasEscalas[`usuario_${anoCalendario}_${mesCalendario + 1}`]?.[dia] === '休';
+                                const esposaFolga = todasEscalas[`esposa_${anoCalendario}_${mesCalendario + 1}`]?.[dia] === '休';
+                                if (minhaFolga && esposaFolga) {
+                                  return (
+                                    <span className="text-[8px] text-amber-600 font-bold leading-none mt-0.5 tracking-tight flex items-center gap-0.5" title="Folga em comum do casal!">
+                                      <span>💛</span>
+                                      <span>Juntos</span>
+                                    </span>
+                                  );
+                                }
+                                return null;
+                              })()}
                             </button>
                           );
                         })}
