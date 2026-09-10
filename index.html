@@ -70,6 +70,22 @@
       font-size: 16px !important;
       user-select: auto;
     }
+        /* Animação de Shimmer / Brilho para a Logo FinControl */
+    @keyframes logoShimmer {
+      0% { transform: translateX(-150%) skewX(-20deg); }
+      30%, 100% { transform: translateX(200%) skewX(-20deg); }
+    }
+    .animate-logo-shimmer {
+      animation: logoShimmer 4s infinite ease-in-out;
+    }
+    @keyframes logoGlow {
+      0%, 100% { filter: drop-shadow(0 0 2px rgba(245, 158, 11, 0.4)); }
+      50% { filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.8)); }
+    }
+    .animate-logo-glow {
+      animation: logoGlow 3s infinite ease-in-out;
+    }
+
     /* Animação do Scanner Laser */
     @keyframes scanLaser {
       0% { top: 5%; opacity: 0.9; }
@@ -248,19 +264,21 @@
     function App() {
       const [currentTab, setCurrentTab] = useState('dashboard');
       
-      // Frases motivacionais e inspiracionais rotativas da família
-      const FRASES_MOTIVACIONAIS = [
-        'Construindo o futuro da nossa família ✨',
-        'Cada economia gera liberdade 💎',
-        'Disciplina diária, paz financeira 🌱',
-        'Passo a passo rumo aos nossos sonhos 🚀',
-        'Juntos, transformando metas em realidade 💛'
+      // Frases Estóicas focadas em Prosperidade, Razão e Disciplina Financeira
+      const FRASES_ESTOICAS = [
+        'A riqueza real é ter domínio sobre seus desejos. — Epicteto 🏛️',
+        'A disciplina diária é o único caminho para a liberdade. — Sêneca ⚖️',
+        'Foque no que está sob seu controle: gaste com propósito. — Marco Aurélio 🛡️',
+        'Quem sabe esperar e construir com constância colhe a paz. 💎',
+        'Não compre o supérfluo para não faltar o essencial. — Sêneca 🌱',
+        'A tranquilidade da família nasce da ordem e da razão. 🏛️',
+        'Pequenas economias diárias constroem grande liberdade. ⚔️'
       ];
       const [indiceFrase, setIndiceFrase] = useState(0);
 
       useEffect(() => {
         const timer = setInterval(() => {
-          setIndiceFrase((prev) => (prev + 1) % FRASES_MOTIVACIONAIS.length);
+          setIndiceFrase((prev) => (prev + 1) % FRASES_ESTOICAS.length);
         }, 7000);
         return () => clearInterval(timer);
       }, []);
@@ -875,18 +893,47 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
 
           {/* Top Bar */}
           <header className="px-4 py-3.5 flex justify-between items-center bg-[#F5F2EB]/95 sticky top-0 z-20 backdrop-blur-md border-b border-slate-200/70">
-            <div>
-              <span className="text-[10px] tracking-widest uppercase font-bold text-[#0F2C59]">Controle 2026</span>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-serif font-bold text-slate-900 leading-tight">FinControl</h1>
+            <div className="flex-1 min-w-0 mr-2">
+              <span className="text-[9px] tracking-widest uppercase font-bold text-[#0F2C59] block">
+                Gestão Patrimonial Familiar • 2026
+              </span>
+              
+              <div className="flex flex-wrap items-center gap-2 mt-0.5">
                 
-                {/* ANIMAÇÃO MOTIVACIONAL E INSPIRACIONAL */}
-                <div className="hidden sm:flex items-center gap-1.5 bg-gradient-to-r from-amber-50 to-emerald-50 px-2.5 py-0.5 rounded-full border border-amber-200/80 shadow-2xs">
-                  <span className="text-xs animate-pulse">✨</span>
-                  <span className="text-[10px] font-semibold text-slate-700 tracking-tight transition-opacity duration-500">
-                    {FRASES_MOTIVACIONAIS[indiceFrase]}
+                {/* LOGO ESTILIZADA E ANIMADA FinControl */}
+                <div className="flex items-center gap-1.5 group cursor-pointer">
+                  {/* Brasão Animado com Shimmer e Pulso de Luz */}
+                  <div className="relative w-7 h-7 rounded-xl bg-gradient-to-br from-[#0F2C59] via-[#1B3B6F] to-[#081B38] shadow-md border border-amber-400/40 flex items-center justify-center overflow-hidden shrink-0 animate-logo-glow">
+                    {/* Linha de reflexo que corre pela logo */}
+                    <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/30 to-transparent animate-logo-shimmer"></div>
+                    
+                    {/* Ícone de Crescimento e Escudo Geométrico */}
+                    <svg className="w-4 h-4 text-amber-300 relative z-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                      <path d="M2 17l10 5 10-5" />
+                      <path d="M2 12l10 5 10-5" />
+                    </svg>
+
+                    {/* Ponto de Pulso Ativo */}
+                    <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                  </div>
+
+                  {/* Nome da Marca FinControl */}
+                  <div className="flex items-baseline">
+                    <span className="text-lg font-serif font-black tracking-tight text-[#0F2C59]">Fin</span>
+                    <span className="text-lg font-sans font-bold tracking-tight text-slate-800">Control</span>
+                    <span className="ml-1 text-[9px] font-mono font-bold bg-amber-100 text-amber-900 px-1 rounded">26</span>
+                  </div>
+                </div>
+
+                {/* FRASE ESTÓICA EXCLUSIVA (DISCIPLINA & PROSPERIDADE) */}
+                <div className="flex items-center gap-1 bg-gradient-to-r from-amber-50/90 to-emerald-50/90 px-2 py-0.5 rounded-full border border-amber-200/80 shadow-2xs max-w-full truncate">
+                  <span className="text-xs shrink-0 animate-pulse">🏛️</span>
+                  <span className="text-[10px] font-medium text-slate-700 truncate tracking-tight transition-opacity duration-700">
+                    {FRASES_ESTOICAS[indiceFrase]}
                   </span>
                 </div>
+
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -904,14 +951,6 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
             {currentTab === 'dashboard' && (
               <div className="space-y-4">
                 
-                {/* BANNER MOTIVACIONAL MOBILE-FIRST */}
-                <div className="flex items-center gap-2 bg-gradient-to-r from-amber-50 via-emerald-50 to-amber-50 p-2.5 rounded-2xl border border-amber-200/70 shadow-2xs text-xs">
-                  <span className="text-base animate-pulse shrink-0">✨</span>
-                  <span className="font-medium text-slate-700 text-[11px] leading-tight transition-all duration-500">
-                    {FRASES_MOTIVACIONAIS[indiceFrase]}
-                  </span>
-                </div>
-
                 {/* COTAÇÃO FOREX: IENE / DÓLAR (USD/JPY) */}
                 <div className="bg-white px-4 py-3 rounded-2xl border border-slate-200/90 shadow-xs flex justify-between items-center text-xs">
                   <div className="flex items-center gap-2.5">
