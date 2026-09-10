@@ -98,6 +98,21 @@
       animation: happyPulse 2s infinite ease-in-out;
     }
   </style>
+  <!-- Captura de Erros para nunca deixar a tela em branco silenciosa -->
+  <script>
+    window.addEventListener('error', function(e) {
+      console.error('Erro capturado:', e);
+      var root = document.getElementById('root');
+      if (root && root.children.length === 0) {
+        var errDiv = document.createElement('div');
+        errDiv.style = 'padding: 24px; font-family: -apple-system, sans-serif; background: #fff1f2; color: #9f1239; margin: 20px; border-radius: 16px; border: 1px solid #fecdd3;';
+        errDiv.innerHTML = '<h3 style="margin:0 0 8px; font-size:16px;">⚠️ Aviso de Inicialização:</h3>' +
+          '<p style="font-size:13px; margin:0 0 8px;">' + (e.message || 'Erro de execução') + '</p>' +
+          '<small style="color:#be123c;">Linha: ' + (e.lineno || 'N/A') + '</small>';
+        document.body.prepend(errDiv);
+      }
+    });
+  </script>
 </head>
 <body class="bg-[#F5F2EB] text-slate-800 min-h-screen flex flex-col">
   <div id="root" class="flex-1 flex flex-col"></div>
