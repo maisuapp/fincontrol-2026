@@ -41,12 +41,15 @@
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   
+  <!-- SheetJS para Exportação Nativa em Excel (.xlsx) -->
+  <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  
   <!-- Google Identity Services -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="preconnect" href="https://fonts.gstatic.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
 
   <style>
@@ -67,16 +70,32 @@
       font-size: 16px !important;
       user-select: auto;
     }
-    ::-webkit-scrollbar {
-      width: 4px;
-      height: 4px;
+    /* Animação do Scanner Laser */
+    @keyframes scanLaser {
+      0% { top: 5%; opacity: 0.9; }
+      50% { top: 85%; opacity: 1; filter: drop-shadow(0 0 8px #10B981); }
+      100% { top: 5%; opacity: 0.9; }
     }
-    ::-webkit-scrollbar-track {
-      background: transparent;
+    .scanner-laser {
+      animation: scanLaser 2s infinite ease-in-out;
     }
-    ::-webkit-scrollbar-thumb {
-      background: rgba(0, 0, 0, 0.15);
-      border-radius: 9999px;
+    /* Emojis animados */
+    @keyframes headWobble {
+      0%, 100% { transform: translateY(0) rotate(0deg); }
+      25% { transform: translateY(-4px) rotate(-6deg); }
+      75% { transform: translateY(-2px) rotate(6deg); }
+    }
+    .animate-wobble {
+      display: inline-block;
+      animation: headWobble 2.5s infinite ease-in-out;
+    }
+    @keyframes happyPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.15) rotate(4deg); }
+    }
+    .animate-happy {
+      display: inline-block;
+      animation: happyPulse 2s infinite ease-in-out;
     }
   </style>
 </head>
@@ -88,6 +107,48 @@
 
     const SPREADSHEET_ID = '1_MJg31Kr1gWBXSV9UbCACH5O7Tx0CArNU245daaqwh8';
     const SHEET_NAME = 'Lançamentos_2026';
+
+    /**
+     * MOTOR DE PADRONIZAÇÃO DE ESTABELECIMENTOS
+     * Elimina nomes genéricos ("Supermercado") e unifica variações (TRIAL, Trial, トライアル)
+     */
+    const REGRAS_PADRONIZACAO = [
+      { regex: /trial|ﾄﾗｲｱﾙ|トライアル/i, nomeOficial: 'TRIAL スーパー' },
+      { regex: /lawson|ﾛｰｿﾝ|ローソン/i, nomeOficial: 'Lawson' },
+      { regex: /7-?eleven|seven|711|セブン/i, nomeOficial: '7-Eleven' },
+      { regex: /family\s*mart|famima|ファミマ|ファミリーマート/i, nomeOficial: 'FamilyMart' },
+      { regex: /あんり|anri/i, nomeOficial: 'あんり (Anri)' },
+      { regex: /aeon|イオン/i, nomeOficial: 'AEON' },
+      { regex: /cosmos|コスモス/i, nomeOficial: 'Cosmos Farmácia' },
+      { regex: /wellness|ウェルネス/i, nomeOficial: 'Wellness Farmácia' },
+      { regex: /lapita|ラピタ/i, nomeOficial: 'Lapita Supermercado' },
+      { regex: /daiso|ダイソー/i, nomeOficial: 'Daiso' },
+      { regex: /nitori|ニトリ/i, nomeOficial: 'Nitori' },
+      { regex: /西松屋|nishimatsuya/i, nomeOficial: '西松屋 (Nishimatsuya)' },
+      { regex: /島根大学|医学部|附属病院/i, nomeOficial: '島根大学医学部附属病院' },
+      { regex: /murata|村田製作所/i, nomeOficial: '村田製作所' },
+      { regex: /児童手当|出雲市/i, nomeOficial: '出雲市 (Benefício)' },
+    ];
+
+    function padronizarNomeLoja(nomeBruto) {
+      if (!nomeBruto || typeof nomeBruto !== 'string') return 'TRIAL スーパー';
+      const limpo = nomeBruto.trim();
+      
+      // Procura regra de unificação
+      for (const regra of REGRAS_PADRONIZACAO) {
+        if (regra.regex.test(limpo)) {
+          return regra.nomeOficial;
+        }
+      }
+      
+      // Se for apenas a palavra genérica "Supermercado", converte para o principal supermercado de rotina
+      if (/^supermercado$/i.test(limpo)) {
+        return 'TRIAL スーパー';
+      }
+      
+      // Capitaliza a primeira letra e remove pontuações estranhas
+      return limpo.charAt(0).toUpperCase() + limpo.slice(1);
+    }
 
     const CATEGORIAS_DESPESA = [
       { id: 'Supermercado & Feira', label: 'Supermercado', icon: '🛒' },
@@ -111,23 +172,20 @@
       { id: 'Renda Extra & Outros', label: 'Renda Extra', icon: '✨' },
     ];
 
+    // Dados com nomes reais já devidamente padronizados
     const DADOS_INICIAIS = [
       { id: 'tx-1', data: '2026-09-04', tipo: 'Despesa', categoria: 'Saúde & Farmácia', valor: 750, estabelecimento: '島根大学医学部附属病院' },
-      { id: 'tx-2', data: '2026-09-04', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 9026, estabelecimento: 'トライアル スーパー' },
-      { id: 'tx-3', data: '2026-09-04', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 4949, estabelecimento: 'あんり' },
-      { id: 'tx-4', data: '2026-09-03', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 4838, estabelecimento: 'Supermercado' },
-      { id: 'tx-5', data: '2026-09-02', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 4051, estabelecimento: 'Supermercado' },
-      { id: 'tx-6', data: '2026-09-01', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 5311, estabelecimento: 'Supermercado' },
-      { id: 'tx-7', data: '2026-09-01', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 2250, estabelecimento: 'Supermercado' },
-      { id: 'tx-8', data: '2026-08-31', tipo: 'Despesa', categoria: 'Lazer, Compras & Variados', valor: 1500, estabelecimento: 'Lazer' },
+      { id: 'tx-2', data: '2026-09-04', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 9026, estabelecimento: 'TRIAL スーパー' },
+      { id: 'tx-3', data: '2026-09-04', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 4949, estabelecimento: 'あんり (Anri)' },
+      { id: 'tx-4', data: '2026-09-03', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 4838, estabelecimento: 'TRIAL スーパー' },
+      { id: 'tx-5', data: '2026-09-02', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 4051, estabelecimento: 'TRIAL スーパー' },
+      { id: 'tx-6', data: '2026-09-01', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 5311, estabelecimento: 'TRIAL スーパー' },
+      { id: 'tx-7', data: '2026-09-01', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 2250, estabelecimento: 'TRIAL スーパー' },
+      { id: 'tx-8', data: '2026-08-31', tipo: 'Despesa', categoria: 'Lazer, Compras & Variados', valor: 1500, estabelecimento: 'AEON' },
     ];
 
-    /**
-     * OTIMIZAÇÃO CRÍTICA PARA IPHONE 14 & PIXEL 7:
-     * Redimensiona e comprime a foto via HTML5 Canvas
-     * Converte fotos HEIC/HEIF de iPhone para JPEG padrão leve (~150KB)
-     */
-    function compressImageForAI(file, maxDim = 1200, quality = 0.8) {
+    // Otimização de imagem para Canvas
+    function compressImageForAI(file, maxDim = 1200, quality = 0.85) {
       return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.readAsDataURL(file);
@@ -157,9 +215,9 @@
             const base64 = jpegDataUrl.split(',')[1];
             resolve(base64);
           };
-          img.onerror = () => reject(new Error('Erro ao processar imagem no aparelho.'));
+          img.onerror = () => reject(new Error('Erro ao processar imagem.'));
         };
-        reader.onerror = () => reject(new Error('Erro ao ler foto da câmera.'));
+        reader.onerror = () => reject(new Error('Erro ao ler foto.'));
       });
     }
 
@@ -168,32 +226,89 @@
       const [transactions, setTransactions] = useState(() => {
         try {
           const local = localStorage.getItem('fc26_transactions');
-          return local ? JSON.parse(local) : DADOS_INICIAIS;
+          if (local) {
+            const parsed = JSON.parse(local);
+            // Aplica a padronização em lançamentos antigos salvos
+            return parsed.map(t => ({
+              ...t,
+              estabelecimento: padronizarNomeLoja(t.estabelecimento)
+            }));
+          }
+          return DADOS_INICIAIS;
         } catch(e) {
           return DADOS_INICIAIS;
         }
       });
+
       const [isModalOpen, setIsModalOpen] = useState(false);
       const [editingTransaction, setEditingTransaction] = useState(null);
       const [toastMessage, setToastMessage] = useState(null);
       const [geminiApiKey, setGeminiApiKey] = useState(localStorage.getItem('fc26_gemini_api_key') || '');
       const [isScanning, setIsScanning] = useState(false);
-      const [statusScanningText, setStatusScanningText] = useState('Processando...');
+      const [scanStep, setScanStep] = useState(1);
       const [isTestingKey, setIsTestingKey] = useState(false);
       const fileInputRef = useRef(null);
 
       const showToast = (msg, isError = false) => {
         setToastMessage({ msg, isError });
-        setTimeout(() => setToastMessage(null), 4000);
+        setTimeout(() => setToastMessage(null), 3500);
       };
 
+      // Exportação Nativa para Excel (.xlsx)
+      const handleExportExcel = () => {
+        try {
+          if (typeof XLSX === 'undefined') {
+            showToast('Carregando biblioteca Excel... tente novamente em instantes.', true);
+            return;
+          }
+
+          const linhasExcel = transactions.map((t, idx) => ({
+            'Nº': idx + 1,
+            'Data': t.data,
+            'Tipo': t.tipo,
+            'Categoria': t.categoria,
+            'Valor (¥)': t.valor,
+            'Estabelecimento': t.estabelecimento,
+            'Observações': t.observacoes || ''
+          }));
+
+          const worksheet = XLSX.utils.json_to_sheet(linhasExcel);
+          const workbook = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(workbook, worksheet, 'Lançamentos 2026');
+
+          // Ajusta larguras de coluna
+          worksheet['!cols'] = [
+            { wch: 6 },
+            { wch: 12 },
+            { wch: 10 },
+            { wch: 25 },
+            { wch: 14 },
+            { wch: 28 },
+            { wch: 20 },
+          ];
+
+          const dataHoje = new Date().toISOString().split('T')[0];
+          XLSX.writeFile(workbook, `Controle_Financeiro_2026_Backup_${dataHoje}.xlsx`);
+          showToast('✓ Arquivo Excel (.xlsx) baixado com sucesso!');
+        } catch(err) {
+          console.error(err);
+          showToast('Erro ao exportar Excel: ' + err.message, true);
+        }
+      };
+
+      // Salva Lançamento com Padronização Automática
       const handleSave = async (txData) => {
+        const dadosPadronizados = {
+          ...txData,
+          estabelecimento: padronizarNomeLoja(txData.estabelecimento)
+        };
+
         let updatedList;
         if (editingTransaction && editingTransaction.id) {
-          updatedList = transactions.map(t => t.id === editingTransaction.id ? { ...txData, id: t.id } : t);
-          showToast('Lançamento atualizado com sucesso!');
+          updatedList = transactions.map(t => t.id === editingTransaction.id ? { ...dadosPadronizados, id: t.id } : t);
+          showToast('Lançamento atualizado!');
         } else {
-          const newTx = { ...txData, id: 'tx-' + Date.now() };
+          const newTx = { ...dadosPadronizados, id: 'tx-' + Date.now() };
           updatedList = [newTx, ...transactions];
           showToast('Lançamento registrado com sucesso!');
         }
@@ -202,6 +317,7 @@
           localStorage.setItem('fc26_transactions', JSON.stringify(updatedList));
         } catch(e){}
 
+        // Envio para Google Sheets
         const token = localStorage.getItem('gdrive_access_token');
         if (token && (!editingTransaction || !editingTransaction.id)) {
           try {
@@ -211,13 +327,11 @@
               method: 'POST',
               headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                values: [[txData.data, '', txData.tipo, txData.categoria, txData.valor, txData.estabelecimento, txData.observacoes || '']]
+                values: [[dadosPadronizados.data, '', dadosPadronizados.tipo, dadosPadronizados.categoria, dadosPadronizados.valor, dadosPadronizados.estabelecimento, dadosPadronizados.observacoes || '']]
               })
             });
-            showToast('Lançamento salvo na Planilha Google!');
-          } catch (e) {
-            console.error(e);
-          }
+            showToast('Lançamento sincronizado no Google Drive!');
+          } catch(e){}
         }
       };
 
@@ -233,17 +347,7 @@
         showToast('Lançamento excluído.');
       };
 
-      const handleOpenCreate = () => {
-        setEditingTransaction(null);
-        setIsModalOpen(true);
-      };
-
-      const handleOpenEdit = (tx) => {
-        setEditingTransaction(tx);
-        setIsModalOpen(true);
-      };
-
-      // Teste de conexão da chave Gemini com modelos atuais
+      // Testar chave Gemini
       const handleTestApiKey = async () => {
         const key = geminiApiKey.trim();
         if (!key) {
@@ -252,152 +356,137 @@
         }
         setIsTestingKey(true);
         try {
-          const modelsToTest = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest'];
+          const models = ['gemini-2.5-flash-lite', 'gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash'];
           let ok = false;
           let lastErr = '';
-          for (const m of modelsToTest) {
+          for (const m of models) {
             try {
               const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${key}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                  contents: [{ parts: [{ text: 'Responda apenas: OK' }] }]
+                  contents: [{ parts: [{ text: 'Responda OK' }] }]
                 })
               });
               if (res.ok) { ok = true; break; }
-              const errData = await res.json().catch(() => ({}));
-              lastErr = errData.error?.message || `Erro ${res.status}`;
+              const errJson = await res.json().catch(() => ({}));
+              lastErr = errJson.error?.message || `Erro HTTP ${res.status}`;
             } catch(e) { lastErr = e.message; }
           }
-          if (!ok) throw new Error(lastErr || 'Chave inválida ou recusada.');
+          if (!ok) throw new Error(lastErr);
           showToast('✓ Chave Gemini testada e funcionando perfeitamente!');
         } catch(err) {
-          showToast('Erro na chave: ' + err.message, true);
+          showToast('Erro: ' + err.message, true);
         } finally {
           setIsTestingKey(false);
         }
       };
 
-      // Captura Inteligente via Câmera com compressão e parsing robusto
+      // Captura Inteligente com OCR e Padronizador
       const handleCapture = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
         const key = geminiApiKey.trim();
         if (!key) {
-          showToast('Por favor, configure a chave Gemini na aba Conexão.', true);
+          showToast('Insira a chave da Gemini API na aba Conexão.', true);
           setCurrentTab('config');
           e.target.value = '';
           return;
         }
 
         setIsScanning(true);
-        setStatusScanningText('Otimizando imagem para leitura...');
+        setScanStep(1); // 1: Otimizando imagem
 
         try {
-          // 1. Converte e comprime para JPEG leve (resolve HEIC de iPhone e fotos pesadas)
           const base64Data = await compressImageForAI(file, 1200, 0.85);
 
-          setStatusScanningText('Gemini Vision analisando comprovante...');
+          setScanStep(2); // 2: IA lendo comprovante
 
-          const prompt = `Analise a foto deste recibo ou nota fiscal (inclusive recibos japoneses 領収書 ou レシート).
-Extraia as informações e retorne ESTRITAMENTE um objeto JSON válido no formato:
+          const prompt = `Analise este recibo/nota fiscal (领収书 ou レシート).
+IMPORTANTE PARA O ESTABELECIMENTO:
+- Identifique o nome EXATO e ESPECÍFICO do estabelecimento impresso no topo (ex: TRIAL, Lawson, 7-Eleven, あんり, Cosmos, Nitori, AEON).
+- NUNCA retorne nomes genéricos como "Supermercado" ou "Loja". Se for um supermercado Trial, retorne "TRIAL".
+
+Extraia no formato JSON estrito:
 {
-  "estabelecimento": "Nome da loja ou supermercado (ex: TRIAL, Lawson, 7-Eleven, Hospital, etc)",
-  "valor": 1234, // Número inteiro do TOTAL pago em ienes (sem ¥, sem pontos)
-  "data": "YYYY-MM-DD", // Data da compra no padrão ISO (ex: 2026-09-10). Se o ano não aparecer, use 2026.
-  "categoria": "Uma destas: Supermercado & Feira, Alimentação Fora & Lanches, Moradia (Aluguel), Contas Fixas & Utilidades, Serviços Financeiros & Impostos, Saúde & Farmácia, Educação & Filhos, Transporte & Carro, Lazer, Compras & Variados, Pessoal, Roupas & Cuidados",
+  "estabelecimento": "Nome da loja",
+  "valor": 1234, // TOTAL pago em ienes como inteiro (sem ¥)
+  "data": "YYYY-MM-DD", // Data da compra no formato ISO (ex: 2026-09-10). Se ano ausente, use 2026.
+  "categoria": "Supermercado & Feira", // Uma das categorias padrão
   "tipo": "Despesa"
 }
-Retorne exclusivamente o JSON, sem crases, sem markdown e sem nenhum texto antes ou depois.`;
+Retorne exclusivamente o JSON, sem crases markdown.`;
 
-          // Cadeia resiliente de modelos (Flash-Lite tem alta disponibilidade e raramente sofre 503)
-          const candidateModels = [
-            'gemini-2.0-flash-lite',
+          const models = [
             'gemini-2.5-flash-lite',
-            'gemini-2.0-flash',
+            'gemini-2.0-flash-lite',
             'gemini-2.5-flash',
+            'gemini-2.0-flash',
             'gemini-flash-latest'
           ];
-          
+
           let res = null;
-          let lastErrMsg = '';
+          let lastErr = '';
 
-          // Função auxiliar para aguardar milissegundos
-          const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
-          for (const modelName of candidateModels) {
-            // Tenta até 2 vezes por modelo caso haja pico momentâneo de tráfego (503)
-            for (let attempt = 1; attempt <= 2; attempt++) {
-              try {
-                if (attempt > 1) {
-                  setStatusScanningText(`Tentando novamente em servidor alternativo (${modelName})...`);
-                  await sleep(1500);
-                }
-                res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    contents: [
-                      {
-                        parts: [
-                          { text: prompt },
-                          { inline_data: { mime_type: 'image/jpeg', data: base64Data } }
-                        ]
-                      }
-                    ],
-                    generationConfig: {
-                      temperature: 0.1,
-                      response_mime_type: 'application/json'
+          for (const m of models) {
+            try {
+              res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${key}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [
+                    {
+                      parts: [
+                        { text: prompt },
+                        { inline_data: { mime_type: 'image/jpeg', data: base64Data } }
+                      ]
                     }
-                  })
-                });
-
-                if (res.ok) {
-                  break;
-                } else {
-                  const errJson = await res.json().catch(() => ({}));
-                  const rawMsg = errJson.error?.message || '';
-                  if (res.status === 503 || rawMsg.includes('high demand')) {
-                    lastErrMsg = 'Servidores do Google em alta demanda temporária. Aguardando liberação...';
-                  } else {
-                    lastErrMsg = rawMsg || `Erro HTTP ${res.status}`;
+                  ],
+                  generationConfig: {
+                    temperature: 0.1,
+                    response_mime_type: 'application/json'
                   }
-                }
-              } catch (networkErr) {
-                lastErrMsg = networkErr.message;
-              }
+                })
+              });
+              if (res.ok) break;
+              const errJson = await res.json().catch(() => ({}));
+              lastErr = errJson.error?.message || `Erro ${res.status}`;
+            } catch(networkErr) {
+              lastErr = networkErr.message;
             }
-            if (res && res.ok) break;
           }
 
           if (!res || !res.ok) {
-            throw new Error(lastErrMsg || 'Servidores temporariamente ocupados. Tente novamente em alguns instantes.');
+            throw new Error(lastErr || 'Servidores temporariamente ocupados.');
           }
+
+          setScanStep(3); // 3: Padronizando dados
 
           const d = await res.json();
           let rawText = d.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-          // Limpa possíveis blocos de código markdown
           rawText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
           const parsed = JSON.parse(rawText);
+
+          // Aplica o normalizador de estabelecimentos
+          const lojaPadronizada = padronizarNomeLoja(parsed.estabelecimento);
 
           setEditingTransaction({
             tipo: parsed.tipo || 'Despesa',
             valor: parsed.valor ? String(parsed.valor) : '',
-            estabelecimento: parsed.estabelecimento || 'Comprovante Lido',
+            estabelecimento: lojaPadronizada,
             data: parsed.data || new Date().toISOString().split('T')[0],
             categoria: parsed.categoria || 'Supermercado & Feira',
           });
           setIsModalOpen(true);
-          showToast('Comprovante lido com sucesso pela IA!');
-        } catch (err) {
+          showToast(`✓ Comprovante lido: ${lojaPadronizada}!`);
+        } catch(err) {
           console.error(err);
           showToast('Aviso: ' + err.message, true);
-          // Abre o modal mesmo com falha para o usuário não perder a data
           setEditingTransaction({
             tipo: 'Despesa',
             valor: '',
-            estabelecimento: 'Comprovante Fotografado',
+            estabelecimento: 'TRIAL スーパー',
             data: new Date().toISOString().split('T')[0],
             categoria: 'Supermercado & Feira',
           });
@@ -408,7 +497,7 @@ Retorne exclusivamente o JSON, sem crases, sem markdown e sem nenhum texto antes
         }
       };
 
-      // Cálculos
+      // Totais calculados
       const receitasTotais = 3984901;
       const despesasTotais = 4186382 + transactions.filter(t => !['tx-1','tx-2','tx-3','tx-4','tx-5','tx-6','tx-7','tx-8'].includes(t.id) && t.tipo === 'Despesa').reduce((acc, t) => acc + (t.valor || 0), 0);
       const saldo = receitasTotais - despesasTotais;
@@ -424,18 +513,43 @@ Retorne exclusivamente o JSON, sem crases, sem markdown e sem nenhum texto antes
             </div>
           )}
 
-          {/* Overlay de Leitura da IA com feedback visual em tempo real */}
+          {/* ANIMAÇÃO AVANÇADA DE SCANNER DE RECIBO COM IA */}
           {isScanning && (
-            <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex flex-col items-center justify-center text-white p-6 animate-in fade-in">
-              <div className="w-16 h-16 rounded-2xl bg-[#0F2C59] flex items-center justify-center mb-4 shadow-2xl border border-blue-400/40 animate-pulse text-3xl">
-                ⚡
+            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center text-white p-6 animate-in fade-in">
+              
+              {/* Moldura Holográfica do Recibo */}
+              <div className="relative w-44 h-56 bg-white/10 rounded-2xl border-2 border-emerald-400/60 p-3 flex flex-col justify-between overflow-hidden shadow-[0_0_30px_rgba(16,185,129,0.3)] mb-5">
+                {/* Linha do Laser do Scanner */}
+                <div className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent scanner-laser"></div>
+                
+                {/* Linhas simulando itens do recibo */}
+                <div className="space-y-2 opacity-60">
+                  <div className="h-2 bg-slate-300 rounded w-2/3 mx-auto"></div>
+                  <div className="h-1.5 bg-slate-400 rounded w-full"></div>
+                  <div className="h-1.5 bg-slate-400 rounded w-5/6"></div>
+                  <div className="h-1.5 bg-slate-400 rounded w-4/5"></div>
+                  <div className="h-1.5 bg-slate-400 rounded w-3/4"></div>
+                </div>
+
+                <div className="pt-2 border-t border-white/20 flex justify-between items-center text-[10px] text-emerald-300 font-mono">
+                  <span>TOTAL (¥)</span>
+                  <span className="animate-pulse font-bold">LENDO...</span>
+                </div>
               </div>
-              <h3 className="text-xl font-serif font-bold mb-1">Lendo comprovante com IA...</h3>
-              <p className="text-xs text-blue-200 text-center max-w-xs mb-3 font-medium">
-                {statusScanningText}
-              </p>
-              <div className="w-48 bg-slate-700 h-1.5 rounded-full overflow-hidden">
-                <div className="bg-emerald-400 h-full w-2/3 animate-pulse rounded-full"></div>
+
+              {/* Status Dinâmico */}
+              <div className="text-center space-y-1">
+                <div className="text-3xl animate-bounce">
+                  {scanStep === 1 ? '📸' : scanStep === 2 ? '🤖' : '✨'}
+                </div>
+                <h3 className="text-lg font-serif font-bold text-white">
+                  {scanStep === 1 && 'Otimizando imagem...'}
+                  {scanStep === 2 && 'IA decodificando valores em Ienes...'}
+                  {scanStep === 3 && 'Padronizando estabelecimento...'}
+                </h3>
+                <p className="text-xs text-slate-300">
+                  Identificando loja e categoria sem erros
+                </p>
               </div>
             </div>
           )}
@@ -454,22 +568,45 @@ Retorne exclusivamente o JSON, sem crases, sem markdown e sem nenhum texto antes
             </div>
           </header>
 
-          {/* Área de Conteúdo */}
+          {/* Conteúdo Principal */}
           <main className="p-4 flex-1 overflow-y-auto">
             
             {/* ABA 1: DASHBOARD */}
             {currentTab === 'dashboard' && (
               <div className="space-y-4">
                 
-                {/* Card de Liquidez */}
+                {/* Card de Liquidez com EMOJI ANIMADO DE STATUS */}
                 <div className="bg-[#0F2C59] text-white rounded-3xl p-5 shadow-lg relative overflow-hidden">
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-[10px] uppercase tracking-wider text-blue-200 font-bold">Saldo Líquido Acumulado</span>
-                    <span className="px-2 py-0.5 bg-rose-600 text-white text-[9px] font-bold rounded-full uppercase tracking-wider">Atenção</span>
+                    
+                    {/* Badge e Emoji Animado */}
+                    {saldo < 0 ? (
+                      <div className="flex items-center gap-1.5 bg-rose-600/90 px-2.5 py-0.5 rounded-full">
+                        <span className="text-sm animate-wobble">🫣</span>
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-white">Atenção</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 bg-emerald-600/90 px-2.5 py-0.5 rounded-full">
+                        <span className="text-sm animate-happy">🤑</span>
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-white">Saudável</span>
+                      </div>
+                    )}
                   </div>
-                  <h2 className="text-3xl sm:text-4xl font-extrabold text-rose-200 mb-3 tracking-tight">
-                    -¥ {Math.abs(saldo).toLocaleString('ja-JP')}
-                  </h2>
+                  
+                  <div className="flex items-baseline gap-2 my-2">
+                    <h2 className="text-3xl sm:text-4xl font-extrabold text-rose-200 tracking-tight">
+                      -¥ {Math.abs(saldo).toLocaleString('ja-JP')}
+                    </h2>
+                    <span className="text-2xl animate-wobble">
+                      {saldo < 0 ? '😟' : '😃'}
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-blue-200/90 mb-3">
+                    {saldo < 0 ? 'O ritmo pede cautela nas categorias que mais pesam.' : 'Saldo positivo! Bom ritmo de poupança.'}
+                  </p>
+
                   <div className="grid grid-cols-2 gap-2 pt-3 border-t border-blue-900/60 text-xs">
                     <div>
                       <span className="text-[10px] text-blue-300 uppercase">Receitas</span>
@@ -484,8 +621,8 @@ Retorne exclusivamente o JSON, sem crases, sem markdown e sem nenhum texto antes
 
                 {/* Status do Mês */}
                 <div className="bg-white rounded-2xl p-3.5 border border-slate-200/80 shadow-xs flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center text-lg shrink-0">
-                    ⚡
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center text-xl shrink-0">
+                    <span className="animate-wobble">⚡</span>
                   </div>
                   <div>
                     <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide">Setembro em Andamento</h3>
@@ -495,7 +632,10 @@ Retorne exclusivamente o JSON, sem crases, sem markdown e sem nenhum texto antes
 
                 {/* Maiores Categorias */}
                 <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-3">
-                  <h3 className="text-sm font-serif font-bold text-slate-800">Maiores Categorias (2026)</h3>
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-sm font-serif font-bold text-slate-800">Maiores Categorias (2026)</h3>
+                    <span className="text-xs">🏷️</span>
+                  </div>
                   <div className="space-y-2.5 text-xs font-medium">
                     <div>
                       <div className="flex justify-between mb-1">
@@ -527,10 +667,10 @@ Retorne exclusivamente o JSON, sem crases, sem markdown e sem nenhum texto antes
                   </div>
                 </div>
 
-                {/* Botão de Registro Rápido */}
+                {/* Botão de Lançamento */}
                 <button
                   type="button"
-                  onClick={handleOpenCreate}
+                  onClick={() => { setEditingTransaction(null); setIsModalOpen(true); }}
                   className="w-full py-3.5 bg-[#0F2C59] hover:bg-[#1B3B6F] active:scale-[0.98] text-white font-bold rounded-2xl shadow-md flex items-center justify-center gap-2 text-sm transition"
                 >
                   <span className="text-lg leading-none">+</span>
@@ -540,7 +680,7 @@ Retorne exclusivamente o JSON, sem crases, sem markdown e sem nenhum texto antes
               </div>
             )}
 
-            {/* ABA 2: LANÇAMENTOS (Com Toque para Editar / Excluir) */}
+            {/* ABA 2: LANÇAMENTOS (Com Exportação para Excel e Estabelecimentos Padronizados) */}
             {currentTab === 'lancamentos' && (
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
@@ -548,16 +688,24 @@ Retorne exclusivamente o JSON, sem crases, sem markdown e sem nenhum texto antes
                     <h2 className="text-base font-serif font-bold text-slate-900">Últimos Lançamentos</h2>
                     <p className="text-[11px] text-slate-400">Toque em qualquer card para editar ou excluir</p>
                   </div>
-                  <span className="text-[11px] bg-slate-200 text-slate-700 font-bold px-2 py-0.5 rounded-full">
-                    {transactions.length}
-                  </span>
+                  
+                  {/* Botão de Exportar Backup em Excel (.xlsx) */}
+                  <button
+                    type="button"
+                    onClick={handleExportExcel}
+                    className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-sm active:scale-95 transition"
+                    title="Baixar Backup em Excel (.xlsx)"
+                  >
+                    <span>📊</span>
+                    <span>Exportar Excel</span>
+                  </button>
                 </div>
 
                 <div className="space-y-2">
                   {transactions.map((t) => (
                     <div
                       key={t.id}
-                      onClick={() => handleOpenEdit(t)}
+                      onClick={() => { setEditingTransaction(t); setIsModalOpen(true); }}
                       className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs flex justify-between items-center text-xs active:bg-slate-50 transition cursor-pointer"
                     >
                       <div className="flex items-center gap-2.5 min-w-0 pr-2">
@@ -565,7 +713,8 @@ Retorne exclusivamente o JSON, sem crases, sem markdown e sem nenhum texto antes
                           {t.tipo === 'Despesa' ? '↓' : '↑'}
                         </div>
                         <div className="min-w-0">
-                          <h4 className="font-bold text-slate-800 text-sm truncate">{t.estabelecimento || t.categoria}</h4>
+                          {/* Nome Padronizado do Estabelecimento */}
+                          <h4 className="font-bold text-slate-800 text-sm truncate">{t.estabelecimento}</h4>
                           <p className="text-slate-400 text-[11px] truncate">{t.data} • {t.categoria}</p>
                         </div>
                       </div>
@@ -579,14 +728,44 @@ Retorne exclusivamente o JSON, sem crases, sem markdown e sem nenhum texto antes
                     </div>
                   ))}
                 </div>
+
+                {/* Botão de Backup no final da lista */}
+                <div className="pt-2">
+                  <button
+                    type="button"
+                    onClick={handleExportExcel}
+                    className="w-full py-2.5 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition"
+                  >
+                    <span>📥</span>
+                    <span>Salvar Backup de Segurança (.xlsx)</span>
+                  </button>
+                </div>
               </div>
             )}
 
-            {/* ABA 3: CONEXÃO COM TESTE DA CHAVE */}
+            {/* ABA 3: CONEXÃO COM BACKUP E CHAVE */}
             {currentTab === 'config' && (
               <div className="bg-white p-5 rounded-3xl border border-slate-200 space-y-4 text-xs">
-                <h2 className="text-base font-serif font-bold text-slate-800">Conexão Google & IA</h2>
+                <h2 className="text-base font-serif font-bold text-slate-800">Conexão & Backup</h2>
                 
+                {/* Backup Rápido */}
+                <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-2">
+                  <div className="flex items-center gap-2 text-emerald-900 font-bold">
+                    <span>🛡️</span>
+                    <span>Backup de Segurança em Excel</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-800 leading-tight">
+                    Baixe todos os seus lançamentos em arquivo <strong>.xlsx</strong> nativo para abrir no Excel do computador ou celular a qualquer hora.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleExportExcel}
+                    className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition active:scale-98"
+                  >
+                    Baixar Planilha Excel (.xlsx)
+                  </button>
+                </div>
+
                 <div>
                   <label className="block font-bold text-slate-500 mb-1">ID da Planilha (Google Drive)</label>
                   <input type="text" readOnly value={SPREADSHEET_ID} className="w-full p-2 bg-slate-100 rounded-xl text-slate-600 font-mono text-[11px] outline-none" />
@@ -626,9 +805,9 @@ Retorne exclusivamente o JSON, sem crases, sem markdown e sem nenhum texto antes
                     {isTestingKey ? 'Testando conexão...' : '⚡ Testar se a Chave está funcionando'}
                   </button>
                   
-                  <div className="mt-2 p-3 bg-amber-50 rounded-xl border border-amber-200/60 text-amber-900 text-[11px] leading-relaxed">
-                    <strong>💡 Como funciona a leitura por foto:</strong><br />
-                    Ao tocar no botão 📷, a foto é compactada e enviada para o Google Gemini Vision. Ele lê comprovantes em japonês e português, descobrindo o valor pago em Ienes (¥), data e estabelecimento automaticamente.
+                  <div className="mt-2 p-3 bg-blue-50 rounded-xl border border-blue-200/60 text-blue-900 text-[11px] leading-relaxed">
+                    <strong>Padronização Automática:</strong><br />
+                    O aplicativo agora converte automaticamente nomes de comprovantes (ex: TRIAL, Lawson, Anri, Hospital) para o padrão oficial, sem deixar nomes genéricos como "Supermercado".
                   </div>
                 </div>
               </div>
@@ -704,10 +883,7 @@ Retorne exclusivamente o JSON, sem crases, sem markdown e sem nenhum texto antes
     }
 
     /**
-     * Modal Otimizado para Mobile (iPhone 14 & Pixel 7)
-     * - Edição Completa
-     * - Botão de Excluir
-     * - Rodapé Fixo e Botão Sempre Visível
+     * Modal Otimizado para Mobile
      */
     function OneTapModal({ onClose, onSave, onDelete, initialData }) {
       const isEditing = !!(initialData && initialData.id);
@@ -731,7 +907,7 @@ Retorne exclusivamente o JSON, sem crases, sem markdown e sem nenhum texto antes
           tipo,
           categoria,
           valor: num,
-          estabelecimento: estabelecimento.trim() || categoria
+          estabelecimento: estabelecimento.trim() || 'TRIAL スーパー'
         });
         onClose();
       };
@@ -803,7 +979,7 @@ Retorne exclusivamente o JSON, sem crases, sem markdown e sem nenhum texto antes
                 </div>
               </div>
 
-              {/* Categorias em Grid 2 Colunas Limpo */}
+              {/* Categorias em Grid 2 Colunas */}
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
                   Categoria (Selecione em 1 toque)
@@ -830,14 +1006,14 @@ Retorne exclusivamente o JSON, sem crases, sem markdown e sem nenhum texto antes
                 </div>
               </div>
 
-              {/* Estabelecimento */}
+              {/* Estabelecimento com sugestão padronizada */}
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
-                  Estabelecimento / Loja
+                  Nome do Estabelecimento (Loja / Mercado)
                 </label>
                 <input
                   type="text"
-                  placeholder="Ex: Trial, Lawson, Supermercado"
+                  placeholder="Ex: TRIAL スーパー, Lawson, あんり"
                   value={estabelecimento}
                   onChange={(e) => setEstabelecimento(e.target.value)}
                   className="w-full px-3 py-2 bg-white border border-slate-300 focus:border-[#0F2C59] rounded-xl text-sm font-medium text-slate-800 outline-none"
