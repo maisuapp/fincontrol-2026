@@ -347,7 +347,7 @@
         showToast('Lançamento excluído.');
       };
 
-      // Testar chave Gemini
+      // Testar chave Gemini consultando diretamente a lista de modelos ativos da sua conta
       const handleTestApiKey = async () => {
         const key = geminiApiKey.trim();
         if (!key) {
@@ -356,25 +356,18 @@
         }
         setIsTestingKey(true);
         try {
-          const models = ['gemini-2.5-flash-lite', 'gemini-2.0-flash-lite', 'gemini-2.5-flash', 'gemini-2.0-flash'];
-          let ok = false;
-          let lastErr = '';
-          for (const m of models) {
-            try {
-              const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${key}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  contents: [{ parts: [{ text: 'Responda OK' }] }]
-                })
-              });
-              if (res.ok) { ok = true; break; }
-              const errJson = await res.json().catch(() => ({}));
-              lastErr = errJson.error?.message || `Erro HTTP ${res.status}`;
-            } catch(e) { lastErr = e.message; }
+          // Consulta quais modelos estão liberados para esta chave
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error?.message || 'Chave recusada pelo Google.');
           }
-          if (!ok) throw new Error(lastErr);
-          showToast('✓ Chave Gemini testada e funcionando perfeitamente!');
+          const data = await res.json();
+          const modelosValidos = (data.models || [])
+            .filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent'))
+            .map(m => m.name.replace('models/', ''));
+          
+          showToast(`✓ Chave válida! ${modelosValidos.length} modelos de IA disponíveis.`);
         } catch(err) {
           showToast('Erro: ' + err.message, true);
         } finally {
@@ -418,77 +411,72 @@ Extraia no formato JSON estrito:
 }
 Retorne exclusivamente o JSON, sem crases markdown.`;
 
-          // Modelos oficiais do Google com alta prioridade de visão
-          const models = [
-            'gemini-2.0-flash',
-            'gemini-2.0-flash-001',
-            'gemini-2.5-flash',
-            'gemini-flash-latest'
+          // Endpoints de Produção (v1 Oficial + v1beta)
+          // Removido response_mime_type para evitar o gargalo 503 dos clusters de JSON estruturado
+          const endpointsToTry = [
+            'https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent',
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
+            'https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent',
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent'
           ];
 
           let res = null;
           let lastErr = '';
           const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
-          // Executa tentativas com intervalo inteligente para superar o 503 (alta demanda)
-          for (const m of models) {
-            for (let tentativa = 1; tentativa <= 2; tentativa++) {
-              try {
-                if (tentativa > 1) {
-                  setScanStep(2);
-                  await sleep(2000); // Pausa de 2s para aguardar liberação da fila do Google
-                }
-
-                res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${key}`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    contents: [
-                      {
-                        parts: [
-                          { text: prompt },
-                          { inline_data: { mime_type: 'image/jpeg', data: base64Data } }
-                        ]
-                      }
-                    ],
-                    generationConfig: {
-                      temperature: 0.1,
-                      response_mime_type: 'application/json'
+          for (const endpointUrl of endpointsToTry) {
+            try {
+              res = await fetch(`${endpointUrl}?key=${key}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [
+                    {
+                      parts: [
+                        { text: prompt },
+                        { inline_data: { mime_type: 'image/jpeg', data: base64Data } }
+                      ]
                     }
-                  })
-                });
-
-                if (res.ok) {
-                  break;
-                } else {
-                  const errJson = await res.json().catch(() => ({}));
-                  const msg = errJson.error?.message || '';
-                  if (res.status === 503 || msg.includes('high demand')) {
-                    lastErr = 'Servidores do Google em alta demanda momentânea. Tentando novamente...';
-                  } else {
-                    lastErr = msg || `Erro ${res.status} (${m})`;
+                  ],
+                  generationConfig: {
+                    temperature: 0.1
                   }
+                })
+              });
+
+              if (res.ok) {
+                break;
+              } else {
+                const errJson = await res.json().catch(() => ({}));
+                lastErr = errJson.error?.message || `Erro ${res.status}`;
+                // Se for 503 ou 429, aguarda 1.5s antes do próximo endpoint
+                if (res.status === 503 || res.status === 429) {
+                  await sleep(1500);
                 }
-              } catch(networkErr) {
-                lastErr = networkErr.message;
               }
+            } catch(netErr) {
+              lastErr = netErr.message;
             }
-            if (res && res.ok) break;
           }
 
           if (!res || !res.ok) {
-            if (lastErr.includes('alta demanda') || lastErr.includes('high demand')) {
-              throw new Error('Servidor do Google ocupado neste instante (Pico de tráfego mundial). Aguarde 10 segundos e tente fotografar novamente.');
-            }
-            throw new Error(lastErr || 'Servidores temporariamente ocupados.');
+            throw new Error(lastErr || 'Servidor da IA ocupado. Tente novamente em instantes.');
           }
 
           setScanStep(3); // 3: Padronizando dados
 
           const d = await res.json();
-          let rawText = d.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-          rawText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
-          const parsed = JSON.parse(rawText);
+          let rawText = d.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          
+          // Extração segura por regex do objeto JSON retornado no texto
+          let parsed = {};
+          try {
+            const match = rawText.match(/\{[\s\S]*\}/);
+            if (match) parsed = JSON.parse(match[0]);
+          } catch(e) {
+            console.warn('Erro ao parsear JSON:', e);
+          }
 
           // Aplica o normalizador de estabelecimentos
           const lojaPadronizada = padronizarNomeLoja(parsed.estabelecimento);
