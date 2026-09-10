@@ -63,12 +63,10 @@
       -webkit-font-smoothing: antialiased;
       user-select: none;
     }
-    /* Previne zoom automático indesejado no iOS Safari */
     input, select, textarea {
       font-size: 16px !important;
       user-select: auto;
     }
-    /* Scrollbars limpas */
     ::-webkit-scrollbar {
       width: 4px;
       height: 4px;
@@ -124,6 +122,47 @@
       { id: 'tx-8', data: '2026-08-31', tipo: 'Despesa', categoria: 'Lazer, Compras & Variados', valor: 1500, estabelecimento: 'Lazer' },
     ];
 
+    /**
+     * OTIMIZAÇÃO CRÍTICA PARA IPHONE 14 & PIXEL 7:
+     * Redimensiona e comprime a foto via HTML5 Canvas
+     * Converte fotos HEIC/HEIF de iPhone para JPEG padrão leve (~150KB)
+     */
+    function compressImageForAI(file, maxDim = 1200, quality = 0.8) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (e) => {
+          const img = new Image();
+          img.src = e.target.result;
+          img.onload = () => {
+            let w = img.width;
+            let h = img.height;
+            if (w > h) {
+              if (w > maxDim) {
+                h = Math.round((h * maxDim) / w);
+                w = maxDim;
+              }
+            } else {
+              if (h > maxDim) {
+                w = Math.round((w * maxDim) / h);
+                h = maxDim;
+              }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            const jpegDataUrl = canvas.toDataURL('image/jpeg', quality);
+            const base64 = jpegDataUrl.split(',')[1];
+            resolve(base64);
+          };
+          img.onerror = () => reject(new Error('Erro ao processar imagem no aparelho.'));
+        };
+        reader.onerror = () => reject(new Error('Erro ao ler foto da câmera.'));
+      });
+    }
+
     function App() {
       const [currentTab, setCurrentTab] = useState('dashboard');
       const [transactions, setTransactions] = useState(() => {
@@ -139,32 +178,30 @@
       const [toastMessage, setToastMessage] = useState(null);
       const [geminiApiKey, setGeminiApiKey] = useState(localStorage.getItem('fc26_gemini_api_key') || '');
       const [isScanning, setIsScanning] = useState(false);
+      const [statusScanningText, setStatusScanningText] = useState('Processando...');
+      const [isTestingKey, setIsTestingKey] = useState(false);
       const fileInputRef = useRef(null);
 
       const showToast = (msg, isError = false) => {
         setToastMessage({ msg, isError });
-        setTimeout(() => setToastMessage(null), 3500);
+        setTimeout(() => setToastMessage(null), 4000);
       };
 
-      // Salva (cria ou atualiza) um lançamento
       const handleSave = async (txData) => {
         let updatedList;
         if (editingTransaction && editingTransaction.id) {
-          // Modo Edição
           updatedList = transactions.map(t => t.id === editingTransaction.id ? { ...txData, id: t.id } : t);
-          showToast('Lançamento atualizado!');
+          showToast('Lançamento atualizado com sucesso!');
         } else {
-          // Modo Criação
           const newTx = { ...txData, id: 'tx-' + Date.now() };
           updatedList = [newTx, ...transactions];
-          showToast('Lançamento salvo!');
+          showToast('Lançamento registrado com sucesso!');
         }
         setTransactions(updatedList);
         try {
           localStorage.setItem('fc26_transactions', JSON.stringify(updatedList));
         } catch(e){}
 
-        // Envia ao Google Sheets se houver token
         const token = localStorage.getItem('gdrive_access_token');
         if (token && (!editingTransaction || !editingTransaction.id)) {
           try {
@@ -177,14 +214,13 @@
                 values: [[txData.data, '', txData.tipo, txData.categoria, txData.valor, txData.estabelecimento, txData.observacoes || '']]
               })
             });
-            showToast('Sincronizado na Planilha Google!');
+            showToast('Lançamento salvo na Planilha Google!');
           } catch (e) {
             console.error(e);
           }
         }
       };
 
-      // Exclui um lançamento
       const handleDelete = (idToDelete) => {
         if (!confirm('Deseja realmente excluir este lançamento?')) return;
         const updatedList = transactions.filter(t => t.id !== idToDelete);
@@ -197,95 +233,136 @@
         showToast('Lançamento excluído.');
       };
 
-      // Abre modal para criação
       const handleOpenCreate = () => {
         setEditingTransaction(null);
         setIsModalOpen(true);
       };
 
-      // Abre modal para edição
       const handleOpenEdit = (tx) => {
         setEditingTransaction(tx);
         setIsModalOpen(true);
       };
 
-      // Captura Inteligente via Câmera (Gemini Vision OCR)
+      // Teste de conexão da chave Gemini
+      const handleTestApiKey = async () => {
+        const key = geminiApiKey.trim();
+        if (!key) {
+          showToast('Cole a chave da API primeiro.', true);
+          return;
+        }
+        setIsTestingKey(true);
+        try {
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: [{ text: 'Responda apenas: OK' }] }]
+            })
+          });
+          if (!res.ok) {
+            const err = await res.json();
+            throw new Error(err.error?.message || 'Chave inválida ou recusada.');
+          }
+          showToast('✓ Chave Gemini testada e funcionando perfeitamente!');
+        } catch(err) {
+          showToast('Erro na chave: ' + err.message, true);
+        } finally {
+          setIsTestingKey(false);
+        }
+      };
+
+      // Captura Inteligente via Câmera com compressão e parsing robusto
       const handleCapture = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
-        if (!geminiApiKey) {
-          showToast('Configure a chave da Gemini API na aba Conexão.', true);
+        const key = geminiApiKey.trim();
+        if (!key) {
+          showToast('Por favor, configure a chave Gemini na aba Conexão.', true);
           setCurrentTab('config');
           e.target.value = '';
           return;
         }
 
         setIsScanning(true);
+        setStatusScanningText('Otimizando imagem para leitura...');
+
         try {
-          const reader = new FileReader();
-          reader.readAsDataURL(file);
-          reader.onload = async () => {
-            try {
-              const base64Data = reader.result.split(',')[1];
-              const prompt = `Analise este recibo fiscal japonês/brasileiro (領収書 ou レシート). Extraia exclusivamente um JSON estrito no seguinte formato:
+          // 1. Converte e comprime para JPEG leve (resolve HEIC de iPhone e fotos pesadas)
+          const base64Data = await compressImageForAI(file, 1200, 0.85);
+
+          setStatusScanningText('Gemini Vision analisando comprovante...');
+
+          const prompt = `Analise a foto deste recibo ou nota fiscal (inclusive recibos japoneses 領収書 ou レシート).
+Extraia as informações e retorne ESTRITAMENTE um objeto JSON válido no formato:
 {
-  "estabelecimento": "Nome da loja ou hospital (ex: Trial, Lawson, 7-Eleven, hospital)",
-  "valor": 1234, // Número inteiro do TOTAL pago em ienes (sem decimais e sem ¥)
-  "data": "YYYY-MM-DD", // Data no padrão ISO. Se ano ausente, usar 2026
-  "categoria": "Uma de: [Supermercado & Feira, Alimentação Fora & Lanches, Moradia (Aluguel), Contas Fixas & Utilidades, Serviços Financeiros & Impostos, Saúde & Farmácia, Educação & Filhos, Transporte & Carro, Lazer, Compras & Variados, Pessoal, Roupas & Cuidados]",
+  "estabelecimento": "Nome da loja ou supermercado (ex: TRIAL, Lawson, 7-Eleven, Hospital, etc)",
+  "valor": 1234, // Número inteiro do TOTAL pago em ienes (sem ¥, sem pontos)
+  "data": "YYYY-MM-DD", // Data da compra no padrão ISO (ex: 2026-09-10). Se o ano não aparecer, use 2026.
+  "categoria": "Uma destas: Supermercado & Feira, Alimentação Fora & Lanches, Moradia (Aluguel), Contas Fixas & Utilidades, Serviços Financeiros & Impostos, Saúde & Farmácia, Educação & Filhos, Transporte & Carro, Lazer, Compras & Variados, Pessoal, Roupas & Cuidados",
   "tipo": "Despesa"
 }
-Retorne exclusivamente o JSON, sem markdown e sem explicações.`;
+Retorne exclusivamente o JSON, sem crases, sem markdown e sem nenhum texto antes ou depois.`;
 
-              const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: file.type || 'image/jpeg', data: base64Data } }] }],
-                  generationConfig: { temperature: 0.1, response_mime_type: 'application/json' }
-                })
-              });
-
-              if (!res.ok) {
-                const errBody = await res.text();
-                throw new Error(`Erro na API Gemini (${res.status}). Verifique a chave.`);
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    { text: prompt },
+                    { inline_data: { mime_type: 'image/jpeg', data: base64Data } }
+                  ]
+                }
+              ],
+              generationConfig: {
+                temperature: 0.1,
+                response_mime_type: 'application/json'
               }
+            })
+          });
 
-              const d = await res.json();
-              const parsed = JSON.parse(d.candidates[0].content.parts[0].text);
-              setEditingTransaction({
-                tipo: parsed.tipo || 'Despesa',
-                valor: parsed.valor || '',
-                estabelecimento: parsed.estabelecimento || 'Comprovante Lido',
-                data: parsed.data || new Date().toISOString().split('T')[0],
-                categoria: parsed.categoria || 'Supermercado & Feira',
-              });
-              setIsModalOpen(true);
-              showToast('Comprovante lido com sucesso pela IA!');
-            } catch(err) {
-              console.error(err);
-              showToast('Não foi possível ler o recibo: ' + err.message, true);
-              setEditingTransaction({
-                tipo: 'Despesa',
-                estabelecimento: 'Comprovante Fotografado',
-                data: new Date().toISOString().split('T')[0],
-                categoria: 'Supermercado & Feira'
-              });
-              setIsModalOpen(true);
-            } finally {
-              setIsScanning(false);
-            }
-          };
+          if (!res.ok) {
+            const errJson = await res.json().catch(() => ({}));
+            const msg = errJson.error?.message || `Erro HTTP ${res.status}`;
+            throw new Error(msg);
+          }
+
+          const d = await res.json();
+          let rawText = d.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+          // Limpa possíveis blocos de código markdown
+          rawText = rawText.replace(/```json/gi, '').replace(/```/g, '').trim();
+          const parsed = JSON.parse(rawText);
+
+          setEditingTransaction({
+            tipo: parsed.tipo || 'Despesa',
+            valor: parsed.valor ? String(parsed.valor) : '',
+            estabelecimento: parsed.estabelecimento || 'Comprovante Lido',
+            data: parsed.data || new Date().toISOString().split('T')[0],
+            categoria: parsed.categoria || 'Supermercado & Feira',
+          });
+          setIsModalOpen(true);
+          showToast('Comprovante lido com sucesso pela IA!');
         } catch (err) {
-          setIsScanning(false);
-          showToast('Erro ao processar imagem: ' + err.message, true);
+          console.error(err);
+          showToast('Aviso: ' + err.message, true);
+          // Abre o modal mesmo com falha para o usuário não perder a data
+          setEditingTransaction({
+            tipo: 'Despesa',
+            valor: '',
+            estabelecimento: 'Comprovante Fotografado',
+            data: new Date().toISOString().split('T')[0],
+            categoria: 'Supermercado & Feira',
+          });
+          setIsModalOpen(true);
         } finally {
+          setIsScanning(false);
           e.target.value = '';
         }
       };
 
-      // Totais calculados
+      // Cálculos
       const receitasTotais = 3984901;
       const despesasTotais = 4186382 + transactions.filter(t => !['tx-1','tx-2','tx-3','tx-4','tx-5','tx-6','tx-7','tx-8'].includes(t.id) && t.tipo === 'Despesa').reduce((acc, t) => acc + (t.valor || 0), 0);
       const saldo = receitasTotais - despesasTotais;
@@ -297,20 +374,23 @@ Retorne exclusivamente o JSON, sem markdown e sem explicações.`;
           {toastMessage && (
             <div className="fixed top-3 left-4 right-4 z-50 px-4 py-3 bg-[#081B38] text-white text-xs font-semibold rounded-2xl shadow-2xl border border-slate-700 flex items-center justify-center gap-2 animate-in fade-in slide-in-from-top duration-200">
               <span className={toastMessage.isError ? "text-rose-400" : "text-emerald-400"}>●</span>
-              <span>{toastMessage.msg}</span>
+              <span className="text-center">{toastMessage.msg}</span>
             </div>
           )}
 
-          {/* Overlay Animado de Carregamento da IA */}
+          {/* Overlay de Leitura da IA com feedback visual em tempo real */}
           {isScanning && (
-            <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex flex-col items-center justify-center text-white p-6 animate-in fade-in">
-              <div className="w-16 h-16 rounded-2xl bg-[#0F2C59] flex items-center justify-center mb-4 shadow-2xl border border-blue-400/30 animate-pulse text-3xl">
+            <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex flex-col items-center justify-center text-white p-6 animate-in fade-in">
+              <div className="w-16 h-16 rounded-2xl bg-[#0F2C59] flex items-center justify-center mb-4 shadow-2xl border border-blue-400/40 animate-pulse text-3xl">
                 ⚡
               </div>
               <h3 className="text-xl font-serif font-bold mb-1">Lendo comprovante com IA...</h3>
-              <p className="text-xs text-slate-300 text-center max-w-xs">
-                O Gemini Vision está identificando loja, data e total em Ienes (¥).
+              <p className="text-xs text-blue-200 text-center max-w-xs mb-3 font-medium">
+                {statusScanningText}
               </p>
+              <div className="w-48 bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                <div className="bg-emerald-400 h-full w-2/3 animate-pulse rounded-full"></div>
+              </div>
             </div>
           )}
 
@@ -328,7 +408,7 @@ Retorne exclusivamente o JSON, sem markdown e sem explicações.`;
             </div>
           </header>
 
-          {/* Conteúdo Principal */}
+          {/* Área de Conteúdo */}
           <main className="p-4 flex-1 overflow-y-auto">
             
             {/* ABA 1: DASHBOARD */}
@@ -401,7 +481,7 @@ Retorne exclusivamente o JSON, sem markdown e sem explicações.`;
                   </div>
                 </div>
 
-                {/* Botão de Ação Primária */}
+                {/* Botão de Registro Rápido */}
                 <button
                   type="button"
                   onClick={handleOpenCreate}
@@ -414,7 +494,7 @@ Retorne exclusivamente o JSON, sem markdown e sem explicações.`;
               </div>
             )}
 
-            {/* ABA 2: LANÇAMENTOS (Com opção de Editar e Excluir) */}
+            {/* ABA 2: LANÇAMENTOS (Com Toque para Editar / Excluir) */}
             {currentTab === 'lancamentos' && (
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
@@ -456,18 +536,18 @@ Retorne exclusivamente o JSON, sem markdown e sem explicações.`;
               </div>
             )}
 
-            {/* ABA 3: CONEXÃO & CONFIGURAÇÃO */}
+            {/* ABA 3: CONEXÃO COM TESTE DA CHAVE */}
             {currentTab === 'config' && (
               <div className="bg-white p-5 rounded-3xl border border-slate-200 space-y-4 text-xs">
                 <h2 className="text-base font-serif font-bold text-slate-800">Conexão Google & IA</h2>
                 
                 <div>
-                  <label className="block font-bold text-slate-500 mb-1">ID da Planilha (Sheets)</label>
+                  <label className="block font-bold text-slate-500 mb-1">ID da Planilha (Google Drive)</label>
                   <input type="text" readOnly value={SPREADSHEET_ID} className="w-full p-2 bg-slate-100 rounded-xl text-slate-600 font-mono text-[11px] outline-none" />
                 </div>
 
-                <div className="pt-2 border-t border-slate-100">
-                  <div className="flex justify-between items-center mb-1">
+                <div className="pt-2 border-t border-slate-100 space-y-2">
+                  <div className="flex justify-between items-center">
                     <label className="block font-bold text-slate-700">Chave Gemini API (OCR Recibos)</label>
                     <a
                       href="https://aistudio.google.com/app/apikey"
@@ -481,7 +561,7 @@ Retorne exclusivamente o JSON, sem markdown e sem explicações.`;
                   
                   <input
                     type="password"
-                    placeholder="Cole aqui sua chave (começa com AIzaSy...)"
+                    placeholder="AIzaSy..."
                     value={geminiApiKey}
                     onChange={(e) => {
                       const val = e.target.value.trim();
@@ -490,25 +570,21 @@ Retorne exclusivamente o JSON, sem markdown e sem explicações.`;
                     }}
                     className="w-full p-2.5 border border-slate-300 rounded-xl outline-none focus:border-[#0F2C59] font-mono text-xs"
                   />
+
+                  <button
+                    type="button"
+                    onClick={handleTestApiKey}
+                    disabled={isTestingKey}
+                    className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition"
+                  >
+                    {isTestingKey ? 'Testando conexão...' : '⚡ Testar se a Chave está funcionando'}
+                  </button>
                   
                   <div className="mt-2 p-3 bg-amber-50 rounded-xl border border-amber-200/60 text-amber-900 text-[11px] leading-relaxed">
-                    <strong>💡 Para que serve essa chave?</strong><br />
-                    Ela é o que dá a inteligência para a câmera ler os recibos fiscais japoneses (领収书/レシート). Quando você clica no botão 📷 e tira a foto de um comprovante, a IA do Gemini lê a foto e descobre sozinha:
-                    <ul className="list-disc list-inside mt-1 space-y-0.5">
-                      <li>O valor exato pago em Ienes (¥)</li>
-                      <li>A data da compra</li>
-                      <li>O nome do estabelecimento (Trial, Lawson, etc.)</li>
-                      <li>A categoria mais adequada</li>
-                    </ul>
+                    <strong>💡 Como funciona a leitura por foto:</strong><br />
+                    Ao tocar no botão 📷, a foto é compactada e enviada para o Google Gemini Vision. Ele lê comprovantes em japonês e português, descobrindo o valor pago em Ienes (¥), data e estabelecimento automaticamente.
                   </div>
                 </div>
-
-                {geminiApiKey && (
-                  <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-800 text-[11px] font-medium flex items-center gap-2">
-                    <span>✓</span>
-                    <span>Chave Gemini configurada e pronta para leitura com a câmera!</span>
-                  </div>
-                )}
               </div>
             )}
           </main>
@@ -525,8 +601,8 @@ Retorne exclusivamente o JSON, sem markdown e sem explicações.`;
           <button
             type="button"
             onClick={() => {
-              if (!geminiApiKey) {
-                showToast('Insira a chave da Gemini API na aba Conexão.', true);
+              if (!geminiApiKey.trim()) {
+                showToast('Cole a chave da Gemini API na aba Conexão primeiro.', true);
                 setCurrentTab('config');
               } else {
                 fileInputRef.current?.click();
@@ -549,7 +625,7 @@ Retorne exclusivamente o JSON, sem markdown e sem explicações.`;
             />
           )}
 
-          {/* Barra de Navegação Inferior Ergonômica com Safe Area */}
+          {/* Barra de Navegação Inferior */}
           <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-[#FDFBF7]/95 border-t border-slate-200/80 px-6 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex justify-around items-center z-20 backdrop-blur-md">
             <button
               type="button"
