@@ -250,11 +250,6 @@
       });
 
       const [isModalOpen, setIsModalOpen] = useState(false);
-      // Estados dos Filtros na aba Lançamentos
-      const [filtroTipo, setFiltroTipo] = useState('todos'); // 'todos', 'despesa', 'receita'
-      const [filtroCategoria, setFiltroCategoria] = useState('todas');
-      const [filtroMes, setFiltroMes] = useState('todos');
-      const [termoBusca, setTermoBusca] = useState('');
 
       // Carrega dados da Planilha em tempo real via Apps Script na inicialização
       useEffect(() => {
@@ -302,6 +297,67 @@
       }, []);
 
       const [editingTransaction, setEditingTransaction] = useState(null);
+
+      // Estados de Filtros na aba Lançamentos
+      const [filtroTipo, setFiltroTipo] = useState('todos');
+      const [filtroCategoria, setFiltroCategoria] = useState('todas');
+      const [filtroMes, setFiltroMes] = useState('todos');
+      const [termoBusca, setTermoBusca] = useState('');
+
+      // Dados e Estados do Calendário de Escala (My勤務カレンダー)
+      const CARIMBOS = [
+        { id: '休', label: '休 (Folga)', bg: 'bg-emerald-100 text-emerald-800 border-emerald-300' },
+        { id: '有', label: '有 (Férias/Rem.)', bg: 'bg-amber-100 text-amber-800 border-amber-300' },
+        { id: '欠', label: '欠 (Falta)', bg: 'bg-sky-100 text-sky-800 border-sky-300' },
+        { id: '夜', label: '夜 (Noturno)', bg: 'bg-purple-100 text-purple-800 border-purple-300' },
+        { id: '明', label: '明 (Saída Not.)', bg: 'bg-orange-100 text-orange-800 border-orange-300' },
+        { id: '半', label: '半 (Meio período)', bg: 'bg-slate-100 text-slate-700 border-slate-300' },
+      ];
+
+      // Escala inicial preenchida conforme o My勤務カレンダー da imagem
+      const ESCALA_INICIAL = {
+        3: '休', 4: '休', 9: '休', 10: '休', 15: '休', 16: '休',
+        17: '欠', 21: '休', 22: '休', 27: '休', 28: '休'
+      };
+
+      const [escalaMes, setEscalaMes] = useState(() => {
+        try {
+          const local = localStorage.getItem('fc26_escala_setembro_2026');
+          return local ? JSON.parse(local) : ESCALA_INICIAL;
+        } catch(e) {
+          return ESCALA_INICIAL;
+        }
+      });
+
+      const [carimboAtivo, setCarimboAtivo] = useState(null); // Modo de carimbo rápido
+
+      // Alterna carimbo ao clicar no dia (ciclo ou carimbo ativo)
+      const handleDiaClick = (dia) => {
+        if (!dia) return;
+        const atual = escalaMes[dia] || '';
+        let novo = '';
+
+        if (carimboAtivo !== null) {
+          novo = atual === carimboAtivo ? '' : carimboAtivo;
+        } else {
+          // Ciclo de clique: Vazio -> 休 -> 有 -> 欠 -> 夜 -> 明 -> Vazio
+          const ciclo = ['', '休', '有', '欠', '夜', '明'];
+          const proxIdx = (ciclo.indexOf(atual) + 1) % ciclo.length;
+          novo = ciclo[proxIdx];
+        }
+
+        const novaEscala = { ...escalaMes };
+        if (novo) {
+          novaEscala[dia] = novo;
+        } else {
+          delete novaEscala[dia];
+        }
+
+        setEscalaMes(novaEscala);
+        try {
+          localStorage.setItem('fc26_escala_setembro_2026', JSON.stringify(novaEscala));
+        } catch(e){}
+      };
       const [toastMessage, setToastMessage] = useState(null);
       const [geminiApiKey, setGeminiApiKey] = useState(localStorage.getItem('fc26_gemini_api_key') || '');
       const [isScanning, setIsScanning] = useState(false);
@@ -650,6 +706,170 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
             {currentTab === 'dashboard' && (
               <div className="space-y-4">
                 
+                {/* COTAÇÃO FOREX: IENE / DÓLAR (USD/JPY) */}
+                <div className="bg-white px-4 py-3 rounded-2xl border border-slate-200/90 shadow-xs flex justify-between items-center text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#0F2C59] flex items-center justify-center font-bold text-sm shrink-0 border border-blue-100">
+                      $¥
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                        <span>USD / JPY:</span>
+                        <span className="text-emerald-600 font-extrabold text-sm tracking-tight">¥ 153.62</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400">Cotação Comercial • Banco Central</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                      +0.05%
+                    </span>
+                    <p className="text-[10px] text-slate-400 mt-0.5">1 USD = ¥ 153,62</p>
+                  </div>
+                </div>
+
+                {/* CALENDÁRIO DE ESCALA EDITÁVEL (My勤務カレンダー - FinControl Edition) */}
+                <div className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-xs space-y-3">
+                  
+                  {/* Cabeçalho */}
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                    <div>
+                      <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[#0F2C59]">
+                        <span>《My 勤務カレンダー》</span>
+                      </div>
+                      <h3 className="font-serif font-bold text-slate-900 text-base">
+                        Setembro 2026
+                      </h3>
+                    </div>
+                    
+                    {/* Contador de Folgas */}
+                    <div className="text-right">
+                      <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1 border border-emerald-200 shadow-2xs">
+                        <span>休</span>
+                        <span>{Object.values(escalaMes).filter(v => v === '休').length} folgas</span>
+                      </span>
+                      <p className="text-[9px] text-slate-400 mt-0.5">Hoje: 10 de Setembro (木)</p>
+                    </div>
+                  </div>
+
+                  {/* Dias da Semana (日 月 火 水 木 金 土) */}
+                  <div className="grid grid-cols-7 text-center text-xs font-bold py-1 bg-slate-50 rounded-xl">
+                    <span className="text-rose-500">日</span>
+                    <span className="text-slate-600">月</span>
+                    <span className="text-slate-600">火</span>
+                    <span className="text-slate-600">水</span>
+                    <span className="text-slate-600">木</span>
+                    <span className="text-slate-600">金</span>
+                    <span className="text-blue-500">土</span>
+                  </div>
+
+                  {/* Grade de 30 Dias (Início na Terça-feira) */}
+                  <div className="grid grid-cols-7 gap-1 text-center">
+                    {/* Domingo e Segunda antes do dia 1 */}
+                    <div className="min-h-[48px] bg-slate-50/40 rounded-xl border border-transparent"></div>
+                    <div className="min-h-[48px] bg-slate-50/40 rounded-xl border border-transparent"></div>
+
+                    {Array.from({ length: 30 }, (_, i) => i + 1).map((dia) => {
+                      const carimbo = escalaMes[dia] || '';
+                      const diaSemana = (dia + 1) % 7; // 0=Dom, 6=Sab
+                      const isHoje = dia === 10;
+                      const isFeriado = [21, 22, 23].includes(dia); // Silver Week no Japão (敬老の日 / 秋分の日)
+                      
+                      let badgeColor = 'bg-emerald-100 text-emerald-800 border-emerald-300';
+                      if (carimbo === '有') badgeColor = 'bg-amber-100 text-amber-800 border-amber-300';
+                      if (carimbo === '欠') badgeColor = 'bg-sky-100 text-sky-800 border-sky-300';
+                      if (carimbo === '夜') badgeColor = 'bg-purple-100 text-purple-800 border-purple-300';
+                      if (carimbo === '明') badgeColor = 'bg-orange-100 text-orange-800 border-orange-300';
+                      if (carimbo === '半') badgeColor = 'bg-slate-100 text-slate-700 border-slate-300';
+
+                      return (
+                        <button
+                          key={dia}
+                          type="button"
+                          onClick={() => handleDiaClick(dia)}
+                          className={`min-h-[50px] p-1 rounded-xl flex flex-col justify-between items-center transition active:scale-90 border ${
+                            isHoje 
+                              ? 'ring-2 ring-[#0F2C59] bg-amber-50/70 border-amber-300 shadow-xs' 
+                              : diaSemana === 0 
+                              ? 'bg-rose-50/30 border-rose-100/70 hover:bg-rose-50' 
+                              : diaSemana === 6 
+                              ? 'bg-blue-50/30 border-blue-100/70 hover:bg-blue-50' 
+                              : 'bg-white border-slate-100 hover:bg-slate-50'
+                          }`}
+                          title={`Clique para alterar escala do dia ${dia}`}
+                        >
+                          <div className="w-full flex justify-between items-center px-0.5">
+                            <span className={`text-[11px] font-bold leading-none ${
+                              diaSemana === 0 ? 'text-rose-600' : diaSemana === 6 ? 'text-blue-600' : 'text-slate-700'
+                            }`}>
+                              {dia}
+                            </span>
+                            {isFeriado && (
+                              <span className="text-[8px] bg-rose-600 text-white font-bold px-1 rounded-xs leading-none">
+                                祝
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Carimbo no Dia */}
+                          {carimbo ? (
+                            <span className={`w-full py-0.5 rounded-md text-[10px] font-bold border ${badgeColor} shadow-2xs leading-tight`}>
+                              {carimbo}
+                            </span>
+                          ) : (
+                            <span className="text-[9px] text-transparent leading-none">•</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* BARRA DE CARIMBO RÁPIDO (入力モード) */}
+                  <div className="pt-2.5 border-t border-slate-100 space-y-1.5">
+                    <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
+                      <span>CARIMBO RÁPIDO (TOQUE PARA APLICAR NOS DIAS):</span>
+                      {carimboAtivo !== null && (
+                        <button 
+                          type="button" 
+                          onClick={() => setCarimboAtivo(null)}
+                          className="text-[#0F2C59] underline font-bold"
+                        >
+                          Voltar ao Ciclo de Clique
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap gap-1">
+                      {CARIMBOS.map(c => {
+                        const isSel = carimboAtivo === c.id;
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            onClick={() => setCarimboAtivo(isSel ? null : c.id)}
+                            className={`px-2 py-1 rounded-lg text-[11px] font-bold transition active:scale-95 border ${
+                              isSel ? 'bg-[#0F2C59] text-white border-[#0F2C59] shadow-xs' : 'bg-slate-100 text-slate-700 border-slate-200'
+                            }`}
+                          >
+                            {c.label}
+                          </button>
+                        );
+                      })}
+                      <button
+                        type="button"
+                        onClick={() => setCarimboAtivo(carimboAtivo === '' ? null : '')}
+                        className={`px-2 py-1 rounded-lg text-[11px] font-bold transition active:scale-95 border ${
+                          carimboAtivo === '' ? 'bg-rose-600 text-white border-rose-600' : 'bg-slate-100 text-slate-500 border-slate-200'
+                        }`}
+                        title="Toque em um dia para apagar o carimbo"
+                      >
+                        ✕ Limpar
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+
                 {/* Card de Liquidez com EMOJI ANIMADO DE STATUS */}
                 <div className="bg-[#0F2C59] text-white rounded-3xl p-5 shadow-lg relative overflow-hidden">
                   <div className="flex justify-between items-center mb-1">
@@ -757,51 +977,33 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
 
             {/* ABA 2: LANÇAMENTOS (Com Filtros Inteligentes por Tipo, Categoria e Mês) */}
             {currentTab === 'lancamentos' && (() => {
-              // Aplica todos os filtros de forma combinada
               const listaFiltrada = transactions.filter((t) => {
                 const isDesp = isDespesaTx(t);
-                
-                // Filtro de Tipo (Todos / Despesas / Receitas)
                 if (filtroTipo === 'despesa' && !isDesp) return false;
                 if (filtroTipo === 'receita' && isDesp) return false;
-
-                // Filtro de Categoria
                 if (filtroCategoria !== 'todas' && t.categoria !== filtroCategoria) return false;
-
-                // Filtro de Mês (baseado na data YYYY-MM)
-                if (filtroMes !== 'todos') {
-                  if (!t.data || !t.data.includes(filtroMes)) return false;
-                }
-
-                // Filtro de Busca por texto (estabelecimento, categoria, data ou observação)
+                if (filtroMes !== 'todos' && (!t.data || !t.data.includes(filtroMes))) return false;
                 if (termoBusca.trim()) {
                   const busca = termoBusca.toLowerCase().trim();
                   const conteudo = `${t.estabelecimento} ${t.categoria} ${t.data} ${t.observacoes || ''}`.toLowerCase();
                   if (!conteudo.includes(busca)) return false;
                 }
-
                 return true;
               });
 
-              // Subtotal dinâmico dos itens filtrados
               const subtotalDespesas = listaFiltrada.filter(t => isDespesaTx(t)).reduce((acc, t) => acc + (t.valor || 0), 0);
               const subtotalReceitas = listaFiltrada.filter(t => !isDespesaTx(t)).reduce((acc, t) => acc + (t.valor || 0), 0);
               const temFiltroAtivo = filtroTipo !== 'todos' || filtroCategoria !== 'todas' || filtroMes !== 'todos' || termoBusca.trim() !== '';
-
-              // Lista de categorias únicas presentes nos lançamentos
               const todasCategorias = Array.from(new Set(transactions.map(t => t.categoria).filter(Boolean))).sort();
 
               return (
                 <div className="space-y-3.5">
-                  
-                  {/* Topo da Aba */}
                   <div className="flex justify-between items-center">
                     <div>
                       <h2 className="text-base font-serif font-bold text-slate-900">Lançamentos</h2>
                       <p className="text-[11px] text-slate-400">Filtre, pesquise ou edite qualquer registro</p>
                     </div>
                     
-                    {/* Botão de Exportar Backup em Excel (.xlsx) */}
                     <button
                       type="button"
                       onClick={handleExportExcel}
@@ -813,10 +1015,8 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                     </button>
                   </div>
 
-                  {/* PAINEL DE FILTROS RESPONSIVO */}
+                  {/* PAINEL DE FILTROS */}
                   <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-xs space-y-3">
-                    
-                    {/* 1. Barra de Busca por Texto */}
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
                       <input
@@ -837,7 +1037,6 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                       )}
                     </div>
 
-                    {/* 2. Pílulas Rápidas de Tipo (Todos / Despesas / Receitas) */}
                     <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-semibold">
                       <button
                         type="button"
@@ -862,9 +1061,7 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                       </button>
                     </div>
 
-                    {/* 3. Dropdowns Lado a Lado: Mês e Categoria */}
                     <div className="grid grid-cols-2 gap-2 text-xs">
-                      {/* Seletor de Mês */}
                       <div>
                         <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Mês</label>
                         <select
@@ -885,7 +1082,6 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                         </select>
                       </div>
 
-                      {/* Seletor de Categoria */}
                       <div>
                         <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Categoria</label>
                         <select
@@ -901,7 +1097,6 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                       </div>
                     </div>
 
-                    {/* Barra de Subtotal dos itens filtrados e botão Limpar */}
                     <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-[11px]">
                       <div className="text-slate-500 font-medium">
                         Mostrando <strong>{listaFiltrada.length}</strong> {listaFiltrada.length === 1 ? 'item' : 'itens'}
@@ -933,16 +1128,15 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                         </button>
                       )}
                     </div>
-
                   </div>
 
-                  {/* LISTA DE CARTÕES FILTRADOS */}
+                  {/* LISTA DE CARDS */}
                   <div className="space-y-2">
                     {listaFiltrada.length === 0 ? (
                       <div className="bg-white rounded-2xl p-6 text-center text-slate-400 text-xs border border-slate-200 space-y-1">
                         <div className="text-2xl mb-1">🔍</div>
                         <p className="font-bold text-slate-600">Nenhum lançamento encontrado</p>
-                        <p>Tente ajustar os filtros de tipo, mês ou categoria acima.</p>
+                        <p>Tente ajustar os filtros acima.</p>
                       </div>
                     ) : (
                       listaFiltrada.map((t) => (
@@ -972,7 +1166,6 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                     )}
                   </div>
 
-                  {/* Botão de Backup no final da lista */}
                   <div className="pt-2">
                     <button
                       type="button"
@@ -983,7 +1176,6 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                       <span>Salvar Backup de Segurança (.xlsx)</span>
                     </button>
                   </div>
-
                 </div>
               );
             })()}
