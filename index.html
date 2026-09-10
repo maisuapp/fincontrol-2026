@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" class="h-full">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Controle 2026 - FinControl Mobile</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Controle 2026 - FinControl</title>
   
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -28,21 +28,18 @@
             }
           },
           fontFamily: {
-            sans: ['Inter', 'system-ui', 'sans-serif'],
-            serif: ['Playfair Display', 'Merriweather', 'serif'],
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+            serif: ['Playfair Display', 'Georgia', 'serif'],
           }
         }
       }
     }
   </script>
 
-  <!-- React 18, ReactDOM & Babel for standalone browser execution -->
+  <!-- React 18, ReactDOM & Babel -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
   
   <!-- Google Identity Services -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
@@ -53,19 +50,40 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
 
   <style>
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
     body {
       margin: 0;
-      -webkit-tap-highlight-color: transparent;
-      user-select: none;
+      padding: 0;
       background-color: #F5F2EB;
+      color: #1e293b;
+      overscroll-behavior-y: none;
+      -webkit-font-smoothing: antialiased;
+      user-select: none;
     }
+    /* Previne zoom automático indesejado no iOS Safari */
     input, select, textarea {
+      font-size: 16px !important;
       user-select: auto;
+    }
+    /* Scrollbars limpas */
+    ::-webkit-scrollbar {
+      width: 4px;
+      height: 4px;
+    }
+    ::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(0, 0, 0, 0.15);
+      border-radius: 9999px;
     }
   </style>
 </head>
-<body class="bg-[#F5F2EB]">
-  <div id="root"></div>
+<body class="bg-[#F5F2EB] text-slate-800 min-h-screen flex flex-col">
+  <div id="root" class="flex-1 flex flex-col"></div>
 
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
@@ -74,48 +92,52 @@
     const SHEET_NAME = 'Lançamentos_2026';
 
     const CATEGORIAS_DESPESA = [
-      { id: 'Supermercado & Feira', label: 'Supermercado & Feira', icon: '🛒' },
-      { id: 'Alimentação Fora & Lanches', label: 'Restaurante & Lanches', icon: '🍱' },
+      { id: 'Supermercado & Feira', label: 'Supermercado', icon: '🛒' },
+      { id: 'Alimentação Fora & Lanches', label: 'Restaurante/Lanches', icon: '🍱' },
       { id: 'Moradia (Aluguel)', label: 'Moradia (Aluguel)', icon: '🏠' },
       { id: 'Contas Fixas & Utilidades', label: 'Luz, Gás & Água', icon: '💡' },
-      { id: 'Serviços Financeiros & Impostos', label: 'Impostos & Finanças', icon: '🏛️' },
-      { id: 'Saúde & Farmácia', label: 'Saúde & Farmácia', icon: '💊' },
-      { id: 'Educação & Filhos', label: 'Educação & Filhos', icon: '🎒' },
-      { id: 'Transporte & Carro', label: 'Gasolina & Carro', icon: '🚗' },
+      { id: 'Serviços Financeiros & Impostos', label: 'Impostos/Finanças', icon: '🏛️' },
+      { id: 'Saúde & Farmácia', label: 'Saúde/Farmácia', icon: '💊' },
+      { id: 'Educação & Filhos', label: 'Educação/Filhos', icon: '🎒' },
+      { id: 'Transporte & Carro', label: 'Gasolina/Carro', icon: '🚗' },
       { id: 'Lazer, Compras & Variados', label: 'Lazer & Compras', icon: '🛍️' },
       { id: 'Pessoal, Roupas & Cuidados', label: 'Pessoal & Roupas', icon: '✂️' },
-      { id: 'Doações & Remessas', label: 'Doações / Remessas', icon: '🤝' },
+      { id: 'Doações & Remessas', label: 'Doações/Remessas', icon: '🤝' },
       { id: 'Reservas & Investimentos', label: 'Investimentos', icon: '📈' },
     ];
 
     const CATEGORIAS_RECEITA = [
       { id: 'Salário Principal', label: 'Salário Principal', icon: '💼' },
       { id: 'Salário Cônjuge', label: 'Salário Cônjuge', icon: '💼' },
-      { id: 'Auxílio Governamental', label: 'Auxílio / Benefício', icon: '👶' },
+      { id: 'Auxílio Governamental', label: 'Auxílio Filhos', icon: '👶' },
       { id: 'Renda Extra & Outros', label: 'Renda Extra', icon: '✨' },
     ];
 
-    // Dados base iniciais sincronizados
     const DADOS_INICIAIS = [
-      { id: '1', data: '2026-09-04', tipo: 'Despesa', categoria: 'Saúde & Farmácia', valor: 750, estabelecimento: '島根大学医学部附属病院' },
-      { id: '2', data: '2026-09-04', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 9026, estabelecimento: 'トライアル スーパー' },
-      { id: '3', data: '2026-09-04', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 4949, estabelecimento: 'あんり' },
-      { id: '4', data: '2026-09-03', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 4838, estabelecimento: 'Supermercado' },
-      { id: '5', data: '2026-09-02', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 4051, estabelecimento: 'Supermercado' },
+      { id: 'tx-1', data: '2026-09-04', tipo: 'Despesa', categoria: 'Saúde & Farmácia', valor: 750, estabelecimento: '島根大学医学部附属病院' },
+      { id: 'tx-2', data: '2026-09-04', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 9026, estabelecimento: 'トライアル スーパー' },
+      { id: 'tx-3', data: '2026-09-04', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 4949, estabelecimento: 'あんり' },
+      { id: 'tx-4', data: '2026-09-03', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 4838, estabelecimento: 'Supermercado' },
+      { id: 'tx-5', data: '2026-09-02', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 4051, estabelecimento: 'Supermercado' },
+      { id: 'tx-6', data: '2026-09-01', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 5311, estabelecimento: 'Supermercado' },
+      { id: 'tx-7', data: '2026-09-01', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 2250, estabelecimento: 'Supermercado' },
+      { id: 'tx-8', data: '2026-08-31', tipo: 'Despesa', categoria: 'Lazer, Compras & Variados', valor: 1500, estabelecimento: 'Lazer' },
     ];
 
     function App() {
       const [currentTab, setCurrentTab] = useState('dashboard');
       const [transactions, setTransactions] = useState(() => {
-        const local = localStorage.getItem('fc26_transactions');
-        return local ? JSON.parse(local) : DADOS_INICIAIS;
+        try {
+          const local = localStorage.getItem('fc26_transactions');
+          return local ? JSON.parse(local) : DADOS_INICIAIS;
+        } catch(e) {
+          return DADOS_INICIAIS;
+        }
       });
       const [isModalOpen, setIsModalOpen] = useState(false);
-      const [receiptDraft, setReceiptDraft] = useState(null);
+      const [editingTransaction, setEditingTransaction] = useState(null);
       const [toastMessage, setToastMessage] = useState(null);
-      const [googleClientId, setGoogleClientId] = useState(localStorage.getItem('fc26_google_client_id') || '');
       const [geminiApiKey, setGeminiApiKey] = useState(localStorage.getItem('fc26_gemini_api_key') || '');
-      const [isAuthed, setIsAuthed] = useState(!!localStorage.getItem('gdrive_access_token'));
       const [isScanning, setIsScanning] = useState(false);
       const fileInputRef = useRef(null);
 
@@ -124,13 +146,27 @@
         setTimeout(() => setToastMessage(null), 3500);
       };
 
-      const handleSave = async (newTx) => {
-        const updated = [newTx, ...transactions];
-        setTransactions(updated);
-        localStorage.setItem('fc26_transactions', JSON.stringify(updated));
+      // Salva (cria ou atualiza) um lançamento
+      const handleSave = async (txData) => {
+        let updatedList;
+        if (editingTransaction && editingTransaction.id) {
+          // Modo Edição
+          updatedList = transactions.map(t => t.id === editingTransaction.id ? { ...txData, id: t.id } : t);
+          showToast('Lançamento atualizado!');
+        } else {
+          // Modo Criação
+          const newTx = { ...txData, id: 'tx-' + Date.now() };
+          updatedList = [newTx, ...transactions];
+          showToast('Lançamento salvo!');
+        }
+        setTransactions(updatedList);
+        try {
+          localStorage.setItem('fc26_transactions', JSON.stringify(updatedList));
+        } catch(e){}
 
+        // Envia ao Google Sheets se houver token
         const token = localStorage.getItem('gdrive_access_token');
-        if (token) {
+        if (token && (!editingTransaction || !editingTransaction.id)) {
           try {
             const range = `${SHEET_NAME}!A2:G`;
             const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`;
@@ -138,134 +174,207 @@
               method: 'POST',
               headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
               body: JSON.stringify({
-                values: [[newTx.data, '', newTx.tipo, newTx.categoria, newTx.valor, newTx.estabelecimento, newTx.observacoes || '']]
+                values: [[txData.data, '', txData.tipo, txData.categoria, txData.valor, txData.estabelecimento, txData.observacoes || '']]
               })
             });
-            showToast('Lançamento salvo na Planilha Google com sucesso!');
+            showToast('Sincronizado na Planilha Google!');
           } catch (e) {
-            showToast('Salvo no dispositivo (Erro ao conectar ao Sheets).', true);
+            console.error(e);
           }
-        } else {
-          showToast('Lançamento salvo localmente no aparelho.');
         }
       };
 
+      // Exclui um lançamento
+      const handleDelete = (idToDelete) => {
+        if (!confirm('Deseja realmente excluir este lançamento?')) return;
+        const updatedList = transactions.filter(t => t.id !== idToDelete);
+        setTransactions(updatedList);
+        try {
+          localStorage.setItem('fc26_transactions', JSON.stringify(updatedList));
+        } catch(e){}
+        setIsModalOpen(false);
+        setEditingTransaction(null);
+        showToast('Lançamento excluído.');
+      };
+
+      // Abre modal para criação
+      const handleOpenCreate = () => {
+        setEditingTransaction(null);
+        setIsModalOpen(true);
+      };
+
+      // Abre modal para edição
+      const handleOpenEdit = (tx) => {
+        setEditingTransaction(tx);
+        setIsModalOpen(true);
+      };
+
+      // Captura Inteligente via Câmera (Gemini Vision OCR)
       const handleCapture = async (e) => {
         const file = e.target.files?.[0];
         if (!file) return;
 
+        if (!geminiApiKey) {
+          showToast('Configure a chave da Gemini API na aba Conexão.', true);
+          setCurrentTab('config');
+          e.target.value = '';
+          return;
+        }
+
         setIsScanning(true);
         try {
-          if (!geminiApiKey) {
-            setReceiptDraft({
-              tipo: 'Despesa',
-              valor: '',
-              estabelecimento: 'Comprovante Fotografado',
-              data: new Date().toISOString().split('T')[0],
-              categoria: 'Supermercado & Feira'
-            });
-            setIsModalOpen(true);
-            return;
-          }
-
-          // Leitura OCR via Gemini Multimodal
           const reader = new FileReader();
           reader.readAsDataURL(file);
           reader.onload = async () => {
-            const base64Data = reader.result.split(',')[1];
-            const prompt = `Analise este recibo fiscal japonês/brasileiro e extraia um JSON estrito: {"estabelecimento":"Nome da loja","valor":1234,"data":"YYYY-MM-DD","categoria":"Supermercado & Feira"}`;
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: file.type || 'image/jpeg', data: base64Data } }] }],
-                generationConfig: { temperature: 0.1, response_mime_type: 'application/json' }
-              })
-            });
-            const d = await res.json();
-            const parsed = JSON.parse(d.candidates[0].content.parts[0].text);
-            setReceiptDraft({ ...parsed, tipo: 'Despesa' });
-            setIsModalOpen(true);
+            try {
+              const base64Data = reader.result.split(',')[1];
+              const prompt = `Analise este recibo fiscal japonês/brasileiro (領収書 ou レシート). Extraia exclusivamente um JSON estrito no seguinte formato:
+{
+  "estabelecimento": "Nome da loja ou hospital (ex: Trial, Lawson, 7-Eleven, hospital)",
+  "valor": 1234, // Número inteiro do TOTAL pago em ienes (sem decimais e sem ¥)
+  "data": "YYYY-MM-DD", // Data no padrão ISO. Se ano ausente, usar 2026
+  "categoria": "Uma de: [Supermercado & Feira, Alimentação Fora & Lanches, Moradia (Aluguel), Contas Fixas & Utilidades, Serviços Financeiros & Impostos, Saúde & Farmácia, Educação & Filhos, Transporte & Carro, Lazer, Compras & Variados, Pessoal, Roupas & Cuidados]",
+  "tipo": "Despesa"
+}
+Retorne exclusivamente o JSON, sem markdown e sem explicações.`;
+
+              const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${geminiApiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [{ parts: [{ text: prompt }, { inline_data: { mime_type: file.type || 'image/jpeg', data: base64Data } }] }],
+                  generationConfig: { temperature: 0.1, response_mime_type: 'application/json' }
+                })
+              });
+
+              if (!res.ok) {
+                const errBody = await res.text();
+                throw new Error(`Erro na API Gemini (${res.status}). Verifique a chave.`);
+              }
+
+              const d = await res.json();
+              const parsed = JSON.parse(d.candidates[0].content.parts[0].text);
+              setEditingTransaction({
+                tipo: parsed.tipo || 'Despesa',
+                valor: parsed.valor || '',
+                estabelecimento: parsed.estabelecimento || 'Comprovante Lido',
+                data: parsed.data || new Date().toISOString().split('T')[0],
+                categoria: parsed.categoria || 'Supermercado & Feira',
+              });
+              setIsModalOpen(true);
+              showToast('Comprovante lido com sucesso pela IA!');
+            } catch(err) {
+              console.error(err);
+              showToast('Não foi possível ler o recibo: ' + err.message, true);
+              setEditingTransaction({
+                tipo: 'Despesa',
+                estabelecimento: 'Comprovante Fotografado',
+                data: new Date().toISOString().split('T')[0],
+                categoria: 'Supermercado & Feira'
+              });
+              setIsModalOpen(true);
+            } finally {
+              setIsScanning(false);
+            }
           };
         } catch (err) {
-          showToast('Erro ao ler recibo: ' + err.message, true);
-          setReceiptDraft({ tipo: 'Despesa', data: new Date().toISOString().split('T')[0] });
-          setIsModalOpen(true);
-        } finally {
           setIsScanning(false);
+          showToast('Erro ao processar imagem: ' + err.message, true);
+        } finally {
           e.target.value = '';
         }
       };
 
-      // Cálculos do Dashboard
-      const receitasTotais = 3984901; // Base anual importada
-      const despesasTotais = 4186382 + transactions.filter(t => !['1','2','3','4','5'].includes(t.id) && t.tipo === 'Despesa').reduce((acc, t) => acc + (t.valor || 0), 0);
+      // Totais calculados
+      const receitasTotais = 3984901;
+      const despesasTotais = 4186382 + transactions.filter(t => !['tx-1','tx-2','tx-3','tx-4','tx-5','tx-6','tx-7','tx-8'].includes(t.id) && t.tipo === 'Despesa').reduce((acc, t) => acc + (t.valor || 0), 0);
       const saldo = receitasTotais - despesasTotais;
 
       return (
-        <div className="min-h-screen max-w-md mx-auto flex flex-col justify-between relative pb-20">
+        <div className="w-full max-w-md mx-auto min-h-screen flex flex-col bg-[#F5F2EB] relative pb-24 select-none">
           
-          {/* Toast */}
+          {/* Toast Notification */}
           {toastMessage && (
-            <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 px-4 py-3 bg-[#081B38] text-white text-xs font-semibold rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-2">
+            <div className="fixed top-3 left-4 right-4 z-50 px-4 py-3 bg-[#081B38] text-white text-xs font-semibold rounded-2xl shadow-2xl border border-slate-700 flex items-center justify-center gap-2 animate-in fade-in slide-in-from-top duration-200">
               <span className={toastMessage.isError ? "text-rose-400" : "text-emerald-400"}>●</span>
-              {toastMessage.msg}
+              <span>{toastMessage.msg}</span>
             </div>
           )}
 
-          {/* Header */}
-          <header className="px-5 py-4 flex justify-between items-center border-b border-slate-200/80 bg-[#F5F2EB]/90 sticky top-0 z-20 backdrop-blur-md">
+          {/* Overlay Animado de Carregamento da IA */}
+          {isScanning && (
+            <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex flex-col items-center justify-center text-white p-6 animate-in fade-in">
+              <div className="w-16 h-16 rounded-2xl bg-[#0F2C59] flex items-center justify-center mb-4 shadow-2xl border border-blue-400/30 animate-pulse text-3xl">
+                ⚡
+              </div>
+              <h3 className="text-xl font-serif font-bold mb-1">Lendo comprovante com IA...</h3>
+              <p className="text-xs text-slate-300 text-center max-w-xs">
+                O Gemini Vision está identificando loja, data e total em Ienes (¥).
+              </p>
+            </div>
+          )}
+
+          {/* Top Bar */}
+          <header className="px-4 py-3.5 flex justify-between items-center bg-[#F5F2EB]/95 sticky top-0 z-20 backdrop-blur-md border-b border-slate-200/70">
             <div>
               <span className="text-[10px] tracking-widest uppercase font-bold text-[#0F2C59]">Controle 2026</span>
-              <h1 className="text-xl font-serif font-bold text-slate-900">FinControl</h1>
+              <h1 className="text-xl font-serif font-bold text-slate-900 leading-tight">FinControl</h1>
             </div>
-            <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800">
-              ● Ativo
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                Ativo
+              </span>
+            </div>
           </header>
 
-          {/* Conteúdo */}
-          <main className="p-5 flex-1 overflow-y-auto">
+          {/* Conteúdo Principal */}
+          <main className="p-4 flex-1 overflow-y-auto">
+            
+            {/* ABA 1: DASHBOARD */}
             {currentTab === 'dashboard' && (
-              <div className="space-y-5">
+              <div className="space-y-4">
+                
                 {/* Card de Liquidez */}
-                <div className="bg-[#0F2C59] text-white rounded-3xl p-6 shadow-xl relative">
-                  <div className="flex justify-between items-start mb-2">
-                    <span className="text-[10px] uppercase tracking-widest text-blue-200 font-bold">Saldo Líquido Acumulado</span>
-                    <span className="px-2 py-0.5 bg-rose-600 text-white text-[9px] font-bold rounded-full uppercase">Atenção</span>
+                <div className="bg-[#0F2C59] text-white rounded-3xl p-5 shadow-lg relative overflow-hidden">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[10px] uppercase tracking-wider text-blue-200 font-bold">Saldo Líquido Acumulado</span>
+                    <span className="px-2 py-0.5 bg-rose-600 text-white text-[9px] font-bold rounded-full uppercase tracking-wider">Atenção</span>
                   </div>
-                  <h2 className="text-4xl font-extrabold tracking-tight text-rose-200 mb-4">
+                  <h2 className="text-3xl sm:text-4xl font-extrabold text-rose-200 mb-3 tracking-tight">
                     -¥ {Math.abs(saldo).toLocaleString('ja-JP')}
                   </h2>
-                  <div className="grid grid-cols-2 gap-3 pt-3 border-t border-blue-900/80 text-xs">
+                  <div className="grid grid-cols-2 gap-2 pt-3 border-t border-blue-900/60 text-xs">
                     <div>
                       <span className="text-[10px] text-blue-300 uppercase">Receitas</span>
-                      <p className="font-bold text-emerald-400">¥ {receitasTotais.toLocaleString('ja-JP')}</p>
+                      <p className="font-bold text-emerald-400 text-sm">¥ {receitasTotais.toLocaleString('ja-JP')}</p>
                     </div>
                     <div>
                       <span className="text-[10px] text-blue-300 uppercase">Despesas</span>
-                      <p className="font-bold text-rose-300">¥ {despesasTotais.toLocaleString('ja-JP')}</p>
+                      <p className="font-bold text-rose-300 text-sm">¥ {despesasTotais.toLocaleString('ja-JP')}</p>
                     </div>
                   </div>
                 </div>
 
-                {/* Ponto de Atenção */}
-                <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex items-center gap-3">
-                  <span className="text-2xl">⚡</span>
+                {/* Status do Mês */}
+                <div className="bg-white rounded-2xl p-3.5 border border-slate-200/80 shadow-xs flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center text-lg shrink-0">
+                    ⚡
+                  </div>
                   <div>
-                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">Setembro em Andamento</h3>
+                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide">Setembro em Andamento</h3>
                     <p className="text-xs text-slate-500 mt-0.5">8 movimentos registrados na base central (¥ 32.165)</p>
                   </div>
                 </div>
 
                 {/* Maiores Categorias */}
-                <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-xs">
-                  <h3 className="text-sm font-serif font-bold text-slate-800 mb-3">Maiores Categorias (2026)</h3>
-                  <div className="space-y-3 text-xs font-medium">
+                <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-3">
+                  <h3 className="text-sm font-serif font-bold text-slate-800">Maiores Categorias (2026)</h3>
+                  <div className="space-y-2.5 text-xs font-medium">
                     <div>
                       <div className="flex justify-between mb-1">
-                        <span>1. Supermercado & Feira</span>
-                        <span className="font-bold">¥ 1.582.806</span>
+                        <span className="text-slate-700">1. Supermercado & Feira</span>
+                        <span className="font-bold text-slate-900">¥ 1.582.806</span>
                       </div>
                       <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                         <div className="bg-[#0F2C59] h-full w-[38%] rounded-full"></div>
@@ -273,8 +382,8 @@
                     </div>
                     <div>
                       <div className="flex justify-between mb-1">
-                        <span>2. Serviços Financeiros & Impostos</span>
-                        <span className="font-bold">¥ 807.919</span>
+                        <span className="text-slate-700">2. Impostos & Finanças</span>
+                        <span className="font-bold text-slate-900">¥ 807.919</span>
                       </div>
                       <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                         <div className="bg-slate-400 h-full w-[20%] rounded-full"></div>
@@ -282,8 +391,8 @@
                     </div>
                     <div>
                       <div className="flex justify-between mb-1">
-                        <span>3. Moradia (Aluguel)</span>
-                        <span className="font-bold">¥ 509.899</span>
+                        <span className="text-slate-700">3. Moradia (Aluguel)</span>
+                        <span className="font-bold text-slate-900">¥ 509.899</span>
                       </div>
                       <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                         <div className="bg-slate-400 h-full w-[12%] rounded-full"></div>
@@ -292,59 +401,119 @@
                   </div>
                 </div>
 
-                {/* Botão de Lançamento Direto */}
+                {/* Botão de Ação Primária */}
                 <button
-                  onClick={() => { setReceiptDraft(null); setIsModalOpen(true); }}
-                  className="w-full py-4 bg-[#0F2C59] text-white font-bold rounded-2xl shadow-lg active:scale-98 transition flex items-center justify-center gap-2 text-sm"
+                  type="button"
+                  onClick={handleOpenCreate}
+                  className="w-full py-3.5 bg-[#0F2C59] hover:bg-[#1B3B6F] active:scale-[0.98] text-white font-bold rounded-2xl shadow-md flex items-center justify-center gap-2 text-sm transition"
                 >
-                  + Registrar Despesa / Receita
+                  <span className="text-lg leading-none">+</span>
+                  <span>Registrar Despesa / Receita</span>
                 </button>
+
               </div>
             )}
 
+            {/* ABA 2: LANÇAMENTOS (Com opção de Editar e Excluir) */}
             {currentTab === 'lancamentos' && (
               <div className="space-y-3">
-                <h2 className="text-lg font-serif font-bold text-slate-800 mb-2">Últimos Lançamentos</h2>
-                {transactions.map((t, idx) => (
-                  <div key={idx} className="bg-white p-3.5 rounded-2xl border border-slate-200 flex justify-between items-center text-xs">
-                    <div>
-                      <h4 className="font-bold text-slate-800 text-sm">{t.estabelecimento || t.categoria}</h4>
-                      <p className="text-slate-400">{t.data} • {t.categoria}</p>
-                    </div>
-                    <span className={`font-bold text-sm ${t.tipo === 'Despesa' ? 'text-slate-900' : 'text-emerald-600'}`}>
-                      {t.tipo === 'Despesa' ? '-' : '+'}¥ {Math.round(t.valor).toLocaleString('ja-JP')}
-                    </span>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h2 className="text-base font-serif font-bold text-slate-900">Últimos Lançamentos</h2>
+                    <p className="text-[11px] text-slate-400">Toque em qualquer card para editar ou excluir</p>
                   </div>
-                ))}
+                  <span className="text-[11px] bg-slate-200 text-slate-700 font-bold px-2 py-0.5 rounded-full">
+                    {transactions.length}
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  {transactions.map((t) => (
+                    <div
+                      key={t.id}
+                      onClick={() => handleOpenEdit(t)}
+                      className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs flex justify-between items-center text-xs active:bg-slate-50 transition cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                        <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 font-bold text-sm ${t.tipo === 'Despesa' ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                          {t.tipo === 'Despesa' ? '↓' : '↑'}
+                        </div>
+                        <div className="min-w-0">
+                          <h4 className="font-bold text-slate-800 text-sm truncate">{t.estabelecimento || t.categoria}</h4>
+                          <p className="text-slate-400 text-[11px] truncate">{t.data} • {t.categoria}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className={`font-bold text-sm ${t.tipo === 'Despesa' ? 'text-slate-900' : 'text-emerald-600'}`}>
+                          {t.tipo === 'Despesa' ? '-' : '+'}¥ {Math.round(t.valor).toLocaleString('ja-JP')}
+                        </span>
+                        <span className="text-slate-400 text-sm font-bold pl-1">›</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
 
+            {/* ABA 3: CONEXÃO & CONFIGURAÇÃO */}
             {currentTab === 'config' && (
-              <div className="bg-white p-5 rounded-2xl border border-slate-200 space-y-4 text-xs">
+              <div className="bg-white p-5 rounded-3xl border border-slate-200 space-y-4 text-xs">
                 <h2 className="text-base font-serif font-bold text-slate-800">Conexão Google & IA</h2>
+                
                 <div>
                   <label className="block font-bold text-slate-500 mb-1">ID da Planilha (Sheets)</label>
-                  <input type="text" readOnly value={SPREADSHEET_ID} className="w-full p-2 bg-slate-100 rounded-lg text-slate-600 font-mono text-[11px]" />
+                  <input type="text" readOnly value={SPREADSHEET_ID} className="w-full p-2 bg-slate-100 rounded-xl text-slate-600 font-mono text-[11px] outline-none" />
                 </div>
-                <div>
-                  <label className="block font-bold text-slate-500 mb-1">Chave Gemini API (OCR Recibos)</label>
+
+                <div className="pt-2 border-t border-slate-100">
+                  <div className="flex justify-between items-center mb-1">
+                    <label className="block font-bold text-slate-700">Chave Gemini API (OCR Recibos)</label>
+                    <a
+                      href="https://aistudio.google.com/app/apikey"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-blue-600 font-bold hover:underline"
+                    >
+                      Obter chave grátis ↗
+                    </a>
+                  </div>
+                  
                   <input
                     type="password"
-                    placeholder="AIzaSy..."
+                    placeholder="Cole aqui sua chave (começa com AIzaSy...)"
                     value={geminiApiKey}
                     onChange={(e) => {
-                      setGeminiApiKey(e.target.value);
-                      localStorage.setItem('fc26_gemini_api_key', e.target.value);
+                      const val = e.target.value.trim();
+                      setGeminiApiKey(val);
+                      localStorage.setItem('fc26_gemini_api_key', val);
                     }}
-                    className="w-full p-2 border border-slate-300 rounded-lg outline-none focus:border-[#0F2C59]"
+                    className="w-full p-2.5 border border-slate-300 rounded-xl outline-none focus:border-[#0F2C59] font-mono text-xs"
                   />
-                  <p className="text-[10px] text-slate-400 mt-1">Insira para ativar a leitura automática de fotos de notas fiscais.</p>
+                  
+                  <div className="mt-2 p-3 bg-amber-50 rounded-xl border border-amber-200/60 text-amber-900 text-[11px] leading-relaxed">
+                    <strong>💡 Para que serve essa chave?</strong><br />
+                    Ela é o que dá a inteligência para a câmera ler os recibos fiscais japoneses (领収书/レシート). Quando você clica no botão 📷 e tira a foto de um comprovante, a IA do Gemini lê a foto e descobre sozinha:
+                    <ul className="list-disc list-inside mt-1 space-y-0.5">
+                      <li>O valor exato pago em Ienes (¥)</li>
+                      <li>A data da compra</li>
+                      <li>O nome do estabelecimento (Trial, Lawson, etc.)</li>
+                      <li>A categoria mais adequada</li>
+                    </ul>
+                  </div>
                 </div>
+
+                {geminiApiKey && (
+                  <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-800 text-[11px] font-medium flex items-center gap-2">
+                    <span>✓</span>
+                    <span>Chave Gemini configurada e pronta para leitura com a câmera!</span>
+                  </div>
+                )}
               </div>
             )}
           </main>
 
-          {/* Botão Flutuante da Câmera (FAB) */}
+          {/* Botão FAB Flutuante de Câmera */}
           <input
             type="file"
             ref={fileInputRef}
@@ -354,44 +523,56 @@
             className="hidden"
           />
           <button
-            onClick={() => fileInputRef.current?.click()}
+            type="button"
+            onClick={() => {
+              if (!geminiApiKey) {
+                showToast('Insira a chave da Gemini API na aba Conexão.', true);
+                setCurrentTab('config');
+              } else {
+                fileInputRef.current?.click();
+              }
+            }}
             disabled={isScanning}
-            className="fixed bottom-20 right-5 z-40 w-14 h-14 bg-[#0F2C59] text-white rounded-full flex items-center justify-center shadow-2xl active:scale-90 transition border-2 border-white text-xl"
-            title="Tirar foto do recibo"
+            className="fixed bottom-20 right-4 z-30 w-[52px] h-[52px] bg-[#0F2C59] text-white rounded-full flex items-center justify-center shadow-2xl active:scale-90 transition border-2 border-white text-xl"
+            title="Tirar foto do comprovante com IA"
           >
             {isScanning ? '⏳' : '📷'}
           </button>
 
-          {/* Modal One-Tap */}
+          {/* Bottom Sheet Modal (Criar / Editar / Excluir) */}
           {isModalOpen && (
             <OneTapModal
-              onClose={() => setIsModalOpen(false)}
+              onClose={() => { setIsModalOpen(false); setEditingTransaction(null); }}
               onSave={handleSave}
-              initialData={receiptDraft}
+              onDelete={handleDelete}
+              initialData={editingTransaction}
             />
           )}
 
-          {/* Bottom Navigation */}
-          <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-[#FDFBF7]/95 border-t border-slate-200 px-6 py-2.5 flex justify-around items-center z-30">
+          {/* Barra de Navegação Inferior Ergonômica com Safe Area */}
+          <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-[#FDFBF7]/95 border-t border-slate-200/80 px-6 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex justify-around items-center z-20 backdrop-blur-md">
             <button
+              type="button"
               onClick={() => setCurrentTab('dashboard')}
-              className={`flex flex-col items-center gap-1 text-[11px] ${currentTab === 'dashboard' ? 'text-[#0F2C59] font-bold' : 'text-slate-400'}`}
+              className={`flex flex-col items-center gap-0.5 text-[11px] font-medium transition ${currentTab === 'dashboard' ? 'text-[#0F2C59] font-bold' : 'text-slate-400'}`}
             >
-              <span>📊</span>
+              <span className="text-base">📊</span>
               <span>Dashboard</span>
             </button>
             <button
+              type="button"
               onClick={() => setCurrentTab('lancamentos')}
-              className={`flex flex-col items-center gap-1 text-[11px] ${currentTab === 'lancamentos' ? 'text-[#0F2C59] font-bold' : 'text-slate-400'}`}
+              className={`flex flex-col items-center gap-0.5 text-[11px] font-medium transition ${currentTab === 'lancamentos' ? 'text-[#0F2C59] font-bold' : 'text-slate-400'}`}
             >
-              <span>📝</span>
+              <span className="text-base">📝</span>
               <span>Lançamentos</span>
             </button>
             <button
+              type="button"
               onClick={() => setCurrentTab('config')}
-              className={`flex flex-col items-center gap-1 text-[11px] ${currentTab === 'config' ? 'text-[#0F2C59] font-bold' : 'text-slate-400'}`}
+              className={`flex flex-col items-center gap-0.5 text-[11px] font-medium transition ${currentTab === 'config' ? 'text-[#0F2C59] font-bold' : 'text-slate-400'}`}
             >
-              <span>⚙️</span>
+              <span className="text-base">⚙️</span>
               <span>Conexão</span>
             </button>
           </nav>
@@ -400,7 +581,14 @@
       );
     }
 
-    function OneTapModal({ onClose, onSave, initialData }) {
+    /**
+     * Modal Otimizado para Mobile (iPhone 14 & Pixel 7)
+     * - Edição Completa
+     * - Botão de Excluir
+     * - Rodapé Fixo e Botão Sempre Visível
+     */
+    function OneTapModal({ onClose, onSave, onDelete, initialData }) {
+      const isEditing = !!(initialData && initialData.id);
       const [tipo, setTipo] = useState(initialData?.tipo || 'Despesa');
       const [valor, setValor] = useState(initialData?.valor ? String(initialData.valor) : '');
       const [categoria, setCategoria] = useState(initialData?.categoria || 'Supermercado & Feira');
@@ -410,43 +598,74 @@
       const categorias = tipo === 'Despesa' ? CATEGORIAS_DESPESA : CATEGORIAS_RECEITA;
 
       const submit = (e) => {
-        e.preventDefault();
+        if (e) e.preventDefault();
         const num = parseFloat(valor);
-        if (!num || num <= 0) return alert('Insira um valor numérico válido.');
-        onSave({ data, tipo, categoria, valor: num, estabelecimento: estabelecimento || categoria });
+        if (!num || num <= 0) {
+          alert('Por favor, informe um valor numérico válido.');
+          return;
+        }
+        onSave({
+          data,
+          tipo,
+          categoria,
+          valor: num,
+          estabelecimento: estabelecimento.trim() || categoria
+        });
         onClose();
       };
 
       return (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-end justify-center">
-          <div className="bg-[#FDFBF7] w-full max-w-md rounded-t-3xl p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto border-t border-slate-200">
-            <div className="flex justify-between items-center pb-2 border-b border-slate-200">
-              <h3 className="font-serif font-bold text-slate-800 text-lg">Novo Lançamento</h3>
-              <button onClick={onClose} className="text-slate-400 text-xl font-bold p-1">✕</button>
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end justify-center animate-in fade-in duration-200">
+          
+          <div className="bg-[#FDFBF7] w-full max-w-md rounded-t-[28px] shadow-2xl flex flex-col max-h-[90vh] max-h-[90dvh] border-t border-slate-200">
+            
+            {/* Header Fixo */}
+            <div className="px-5 py-3.5 border-b border-slate-200 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${isEditing ? 'bg-amber-500' : 'bg-[#0F2C59]'}`}></span>
+                <h3 className="font-serif font-bold text-slate-900 text-lg">
+                  {isEditing ? 'Editar Lançamento' : 'Novo Lançamento'}
+                </h3>
+              </div>
+              <button 
+                type="button"
+                onClick={onClose}
+                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 text-sm font-bold active:scale-95"
+              >
+                ✕
+              </button>
             </div>
 
-            <form onSubmit={submit} className="space-y-4">
-              {/* Segmentação */}
-              <div className="grid grid-cols-2 gap-2 bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+            {/* Conteúdo com Rolagem */}
+            <form onSubmit={submit} className="flex-1 overflow-y-auto px-5 py-3.5 space-y-4">
+              
+              {/* Segmentação Despesa / Receita */}
+              <div className="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-2xl">
                 <button
                   type="button"
-                  onClick={() => setTipo('Despesa')}
-                  className={`py-2 rounded-lg transition ${tipo === 'Despesa' ? 'bg-white text-rose-600 shadow-xs' : 'text-slate-500'}`}
+                  onClick={() => { setTipo('Despesa'); setCategoria(CATEGORIAS_DESPESA[0].id); }}
+                  className={`py-2 rounded-xl text-xs font-bold transition ${
+                    tipo === 'Despesa' ? 'bg-white text-rose-600 shadow-xs' : 'text-slate-500'
+                  }`}
                 >
                   ↓ Despesa
                 </button>
                 <button
                   type="button"
-                  onClick={() => setTipo('Receita')}
-                  className={`py-2 rounded-lg transition ${tipo === 'Receita' ? 'bg-white text-emerald-600 shadow-xs' : 'text-slate-500'}`}
+                  onClick={() => { setTipo('Receita'); setCategoria(CATEGORIAS_RECEITA[0].id); }}
+                  className={`py-2 rounded-xl text-xs font-bold transition ${
+                    tipo === 'Receita' ? 'bg-white text-emerald-600 shadow-xs' : 'text-slate-500'
+                  }`}
                 >
                   ↑ Receita
                 </button>
               </div>
 
-              {/* Valor com Teclado Numérico */}
+              {/* Campo de Valor com Teclado Numérico */}
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Valor (¥)</label>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  Valor (¥)
+                </label>
                 <div className="relative">
                   <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold text-slate-400">¥</span>
                   <input
@@ -457,58 +676,90 @@
                     placeholder="0"
                     value={valor}
                     onChange={(e) => setValor(e.target.value.replace(/[^0-9]/g, ''))}
-                    className="w-full pl-11 pr-4 py-3 bg-white border border-slate-300 rounded-2xl text-3xl font-bold text-[#0F2C59] outline-none focus:border-[#0F2C59]"
+                    className="w-full pl-11 pr-4 py-2.5 bg-white border border-slate-300 focus:border-[#0F2C59] rounded-2xl text-2xl font-extrabold text-[#0F2C59] outline-none"
                   />
                 </div>
               </div>
 
-              {/* Chips de Categoria */}
+              {/* Categorias em Grid 2 Colunas Limpo */}
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Categoria (Toque para escolher)</label>
-                <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto p-1 bg-white rounded-xl border border-slate-200">
-                  {categorias.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => setCategoria(c.id)}
-                      className={`px-2.5 py-1.5 rounded-lg text-xs font-medium transition active:scale-95 ${categoria === c.id ? 'bg-[#0F2C59] text-white font-bold' : 'bg-slate-100 text-slate-700'}`}
-                    >
-                      {c.icon} {c.label}
-                    </button>
-                  ))}
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                  Categoria (Selecione em 1 toque)
+                </label>
+                <div className="grid grid-cols-2 gap-1.5 max-h-44 overflow-y-auto pr-1">
+                  {categorias.map((c) => {
+                    const isSelected = categoria === c.id;
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => setCategoria(c.id)}
+                        className={`flex items-center gap-1.5 p-2 rounded-xl text-xs font-medium text-left transition active:scale-95 border ${
+                          isSelected
+                            ? 'bg-[#0F2C59] text-white border-[#0F2C59] font-bold shadow-xs'
+                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                        }`}
+                      >
+                        <span className="text-sm shrink-0">{c.icon}</span>
+                        <span className="truncate">{c.label}</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
-              {/* Loja / Descrição */}
+              {/* Estabelecimento */}
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Estabelecimento</label>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  Estabelecimento / Loja
+                </label>
                 <input
                   type="text"
                   placeholder="Ex: Trial, Lawson, Supermercado"
                   value={estabelecimento}
                   onChange={(e) => setEstabelecimento(e.target.value)}
-                  className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-xs outline-none"
+                  className="w-full px-3 py-2 bg-white border border-slate-300 focus:border-[#0F2C59] rounded-xl text-sm font-medium text-slate-800 outline-none"
                 />
               </div>
 
               {/* Data */}
               <div>
-                <label className="block text-[10px] uppercase font-bold text-slate-400 mb-1">Data</label>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  Data
+                </label>
                 <input
                   type="date"
                   value={data}
                   onChange={(e) => setData(e.target.value)}
-                  className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs outline-none"
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm font-medium text-slate-800 outline-none"
                 />
               </div>
 
-              <button
-                type="submit"
-                className="w-full py-3.5 bg-[#0F2C59] text-white font-bold rounded-2xl shadow-lg text-sm active:scale-98 transition"
-              >
-                ✓ Salvar Lançamento
-              </button>
             </form>
+
+            {/* Rodapé Fixo com Botão de Salvar e Excluir */}
+            <div className="p-4 pt-2.5 bg-[#FDFBF7] border-t border-slate-200 shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-2">
+              <button
+                type="button"
+                onClick={submit}
+                disabled={!valor}
+                className="w-full py-3.5 bg-[#0F2C59] hover:bg-[#1B3B6F] disabled:opacity-50 active:scale-[0.98] text-white font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2 text-sm transition"
+              >
+                <span>✓</span>
+                <span>{isEditing ? 'Salvar Alterações' : 'Salvar Lançamento'}</span>
+              </button>
+
+              {isEditing && (
+                <button
+                  type="button"
+                  onClick={() => onDelete(initialData.id)}
+                  className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded-xl text-xs transition"
+                >
+                  🗑 Excluir este Lançamento
+                </button>
+              )}
+            </div>
+
           </div>
         </div>
       );
