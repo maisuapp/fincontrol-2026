@@ -418,46 +418,68 @@ Extraia no formato JSON estrito:
 }
 Retorne exclusivamente o JSON, sem crases markdown.`;
 
+          // Modelos oficiais do Google com alta prioridade de visão
           const models = [
-            'gemini-2.5-flash-lite',
-            'gemini-2.0-flash-lite',
-            'gemini-2.5-flash',
             'gemini-2.0-flash',
+            'gemini-2.0-flash-001',
+            'gemini-2.5-flash',
             'gemini-flash-latest'
           ];
 
           let res = null;
           let lastErr = '';
+          const sleep = (ms) => new Promise(r => setTimeout(r, ms));
 
+          // Executa tentativas com intervalo inteligente para superar o 503 (alta demanda)
           for (const m of models) {
-            try {
-              res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${key}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  contents: [
-                    {
-                      parts: [
-                        { text: prompt },
-                        { inline_data: { mime_type: 'image/jpeg', data: base64Data } }
-                      ]
+            for (let tentativa = 1; tentativa <= 2; tentativa++) {
+              try {
+                if (tentativa > 1) {
+                  setScanStep(2);
+                  await sleep(2000); // Pausa de 2s para aguardar liberação da fila do Google
+                }
+
+                res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${key}`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    contents: [
+                      {
+                        parts: [
+                          { text: prompt },
+                          { inline_data: { mime_type: 'image/jpeg', data: base64Data } }
+                        ]
+                      }
+                    ],
+                    generationConfig: {
+                      temperature: 0.1,
+                      response_mime_type: 'application/json'
                     }
-                  ],
-                  generationConfig: {
-                    temperature: 0.1,
-                    response_mime_type: 'application/json'
+                  })
+                });
+
+                if (res.ok) {
+                  break;
+                } else {
+                  const errJson = await res.json().catch(() => ({}));
+                  const msg = errJson.error?.message || '';
+                  if (res.status === 503 || msg.includes('high demand')) {
+                    lastErr = 'Servidores do Google em alta demanda momentânea. Tentando novamente...';
+                  } else {
+                    lastErr = msg || `Erro ${res.status} (${m})`;
                   }
-                })
-              });
-              if (res.ok) break;
-              const errJson = await res.json().catch(() => ({}));
-              lastErr = errJson.error?.message || `Erro ${res.status}`;
-            } catch(networkErr) {
-              lastErr = networkErr.message;
+                }
+              } catch(networkErr) {
+                lastErr = networkErr.message;
+              }
             }
+            if (res && res.ok) break;
           }
 
           if (!res || !res.ok) {
+            if (lastErr.includes('alta demanda') || lastErr.includes('high demand')) {
+              throw new Error('Servidor do Google ocupado neste instante (Pico de tráfego mundial). Aguarde 10 segundos e tente fotografar novamente.');
+            }
             throw new Error(lastErr || 'Servidores temporariamente ocupados.');
           }
 
