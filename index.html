@@ -344,11 +344,6 @@
         }
       });
 
-      const chaveMesAtual = `${perfilEscala}_${anoCalendario}_${mesCalendario + 1}`;
-      const escalaMes = todasEscalas[chaveMesAtual] || {};
-
-      const [carimboAtivo, setCarimboAtivo] = useState(null);
-
       // Perfil do Calendário: Permite que você e sua esposa tenham escalas 100% independentes
       const [perfilEscala, setPerfilEscala] = useState(() => {
         return localStorage.getItem('fc26_perfil_escala') || 'usuario';
@@ -360,6 +355,11 @@
           localStorage.setItem('fc26_perfil_escala', novoPerfil);
         } catch(e){}
       };
+
+      const chaveMesAtual = `${perfilEscala}_${anoCalendario}_${mesCalendario + 1}`;
+      const escalaMes = todasEscalas[chaveMesAtual] || {};
+
+      const [carimboAtivo, setCarimboAtivo] = useState(null);
 
       // Navegação de Meses
       const handleMesAnterior = () => {
