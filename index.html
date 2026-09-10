@@ -311,41 +311,68 @@ Extraia as informações e retorne ESTRITAMENTE um objeto JSON válido no format
 }
 Retorne exclusivamente o JSON, sem crases, sem markdown e sem nenhum texto antes ou depois.`;
 
-          // Fallback dinâmico com os modelos oficiais mais recentes do Google
-          const candidateModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-flash-latest'];
+          // Cadeia resiliente de modelos (Flash-Lite tem alta disponibilidade e raramente sofre 503)
+          const candidateModels = [
+            'gemini-2.0-flash-lite',
+            'gemini-2.5-flash-lite',
+            'gemini-2.0-flash',
+            'gemini-2.5-flash',
+            'gemini-flash-latest'
+          ];
+          
           let res = null;
           let lastErrMsg = '';
 
+          // Função auxiliar para aguardar milissegundos
+          const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
           for (const modelName of candidateModels) {
-            try {
-              res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  contents: [
-                    {
-                      parts: [
-                        { text: prompt },
-                        { inline_data: { mime_type: 'image/jpeg', data: base64Data } }
-                      ]
+            // Tenta até 2 vezes por modelo caso haja pico momentâneo de tráfego (503)
+            for (let attempt = 1; attempt <= 2; attempt++) {
+              try {
+                if (attempt > 1) {
+                  setStatusScanningText(`Tentando novamente em servidor alternativo (${modelName})...`);
+                  await sleep(1500);
+                }
+                res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${key}`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    contents: [
+                      {
+                        parts: [
+                          { text: prompt },
+                          { inline_data: { mime_type: 'image/jpeg', data: base64Data } }
+                        ]
+                      }
+                    ],
+                    generationConfig: {
+                      temperature: 0.1,
+                      response_mime_type: 'application/json'
                     }
-                  ],
-                  generationConfig: {
-                    temperature: 0.1,
-                    response_mime_type: 'application/json'
+                  })
+                });
+
+                if (res.ok) {
+                  break;
+                } else {
+                  const errJson = await res.json().catch(() => ({}));
+                  const rawMsg = errJson.error?.message || '';
+                  if (res.status === 503 || rawMsg.includes('high demand')) {
+                    lastErrMsg = 'Servidores do Google em alta demanda temporária. Aguardando liberação...';
+                  } else {
+                    lastErrMsg = rawMsg || `Erro HTTP ${res.status}`;
                   }
-                })
-              });
-              if (res.ok) break;
-              const errJson = await res.json().catch(() => ({}));
-              lastErrMsg = errJson.error?.message || `Erro HTTP ${res.status} (${modelName})`;
-            } catch (networkErr) {
-              lastErrMsg = networkErr.message;
+                }
+              } catch (networkErr) {
+                lastErrMsg = networkErr.message;
+              }
             }
+            if (res && res.ok) break;
           }
 
           if (!res || !res.ok) {
-            throw new Error(lastErrMsg || 'Falha ao analisar comprovante.');
+            throw new Error(lastErrMsg || 'Servidores temporariamente ocupados. Tente novamente em alguns instantes.');
           }
 
           const d = await res.json();
