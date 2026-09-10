@@ -247,6 +247,30 @@
 
     function App() {
       const [currentTab, setCurrentTab] = useState('dashboard');
+      
+      // Frases motivacionais e inspiracionais rotativas da família
+      const FRASES_MOTIVACIONAIS = [
+        'Construindo o futuro da nossa família ✨',
+        'Cada economia gera liberdade 💎',
+        'Disciplina diária, paz financeira 🌱',
+        'Passo a passo rumo aos nossos sonhos 🚀',
+        'Juntos, transformando metas em realidade 💛'
+      ];
+      const [indiceFrase, setIndiceFrase] = useState(0);
+
+      useEffect(() => {
+        const timer = setInterval(() => {
+          setIndiceFrase((prev) => (prev + 1) % FRASES_MOTIVACIONAIS.length);
+        }, 7000);
+        return () => clearInterval(timer);
+      }, []);
+
+      // Estado do Popup/Banner de Notificação de Atualização em Tempo Real
+      const [popupNotificacao, setPopupNotificacao] = useState(null);
+      const mostrarAlertaAtualizacao = (local, autor = '') => {
+        setPopupNotificacao({ local, autor, hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) });
+        setTimeout(() => setPopupNotificacao(null), 6000);
+      };
       const [transactions, setTransactions] = useState(() => {
         try {
           const local = localStorage.getItem('fc26_transactions');
@@ -268,48 +292,101 @@
 
       // Carrega dados da Planilha em tempo real via Apps Script na inicialização
       useEffect(() => {
-        const carregarPlanilhaNuvem = async () => {
+        const formatData = (d) => {
+          if (!d) return '';
+          if (typeof d === 'string' && d.includes('T')) return d.split('T')[0];
+          try {
+            const dt = new Date(d);
+            if (!isNaN(dt.getTime())) return dt.toISOString().split('T')[0];
+          } catch(e){}
+          return String(d).substring(0, 10);
+        };
+
+        // Função de consulta e sincronização com a nuvem
+        const verificarSincronizacao = async (ehPolling = false) => {
           try {
             const res = await fetch(APPS_SCRIPT_URL);
-            if (res.ok) {
-              const rows = await res.json();
-              if (Array.isArray(rows) && rows.length > 1) {
-                // Linha 0 é cabeçalho: Data, Mês, Tipo, Categoria, Valor, Estabelecimento, Observações
-                const formatData = (d) => {
-                  if (!d) return '';
-                  if (typeof d === 'string' && d.includes('T')) return d.split('T')[0];
-                  try {
-                    const dt = new Date(d);
-                    if (!isNaN(dt.getTime())) return dt.toISOString().split('T')[0];
-                  } catch(e){}
-                  return String(d).substring(0, 10);
-                };
+            if (!res.ok) return;
+            const data = await res.json();
 
-                const carregadas = rows.slice(1).map((r, i) => ({
-                  id: 'sheet-' + (i + 2),
-                  data: formatData(r[0]),
-                  mes: r[1] || '',
-                  tipo: String(r[2] || '').trim().toLowerCase().includes('receita') ? 'Receita' : 'Despesa',
-                  categoria: r[3] || 'Supermercado & Feira',
-                  valor: parseFloat(r[4]) || 0,
-                  estabelecimento: padronizarNomeLoja(r[5]),
-                  observacoes: r[6] || ''
-                })).filter(t => t.data && t.valor > 0).reverse(); // Mais recentes primeiro
+            // 1. Processa Lançamentos
+            let rows = [];
+            if (Array.isArray(data)) {
+              rows = data;
+            } else if (data && data.rows) {
+              rows = data.rows;
+            }
 
-                if (carregadas.length > 0) {
-                  setTransactions(carregadas);
-                  localStorage.setItem('fc26_transactions', JSON.stringify(carregadas));
+            if (Array.isArray(rows) && rows.length > 1) {
+              const carregadas = rows.slice(1).map((r, i) => ({
+                id: 'sheet-' + (i + 2),
+                data: formatData(r[0]),
+                mes: r[1] || '',
+                tipo: String(r[2] || '').trim().toLowerCase().includes('receita') ? 'Receita' : 'Despesa',
+                categoria: r[3] || 'Supermercado & Feira',
+                valor: parseFloat(r[4]) || 0,
+                estabelecimento: padronizarNomeLoja(r[5]),
+                observacoes: r[6] || ''
+              })).filter(t => t.data && t.valor > 0).reverse();
+
+              // Detecta se houve novos lançamentos vindos de outro aparelho
+              if (carregadas.length > 0) {
+                const totalAtual = transactions.length;
+                if (ehPolling && carregadas.length > totalAtual) {
+                  mostrarAlertaAtualizacao('Lançamentos Financeiros');
+                }
+                setTransactions(carregadas);
+                localStorage.setItem('fc26_transactions', JSON.stringify(carregadas));
+                if (!ehPolling) {
                   showToast(`✓ Sincronizado com o Drive: ${carregadas.length} lançamentos!`);
                 }
               }
             }
+
+            // 2. Processa Sincronização de Escalas do Casal
+            if (data && data.escala) {
+              try {
+                const nuvemEscalas = typeof data.escala === 'string' ? JSON.parse(data.escala) : data.escala;
+                if (nuvemEscalas && typeof nuvemEscalas === 'object') {
+                  const localStr = localStorage.getItem('fc26_todas_escalas');
+                  const nuvemStr = JSON.stringify(nuvemEscalas);
+                  if (localStr !== nuvemStr) {
+                    setTodasEscalas(nuvemEscalas);
+                    localStorage.setItem('fc26_todas_escalas', nuvemStr);
+                    if (ehPolling) {
+                      mostrarAlertaAtualizacao('Calendário de Escala', data.ultimoAutor || '');
+                    }
+                  }
+                }
+              } catch(e){}
+            }
+
           } catch(err) {
-            console.warn('Conexão offline ou inicial, usando cache local:', err);
+            console.warn('Sincronização em segundo plano:', err);
           }
         };
 
-        carregarPlanilhaNuvem();
-      }, []);
+        // Carga inicial
+        verificarSincronizacao(false);
+
+        // Polling suave a cada 25 segundos para manter os dois celulares sincronizados em tempo real
+        const intervalId = setInterval(() => {
+          verificarSincronizacao(true);
+        }, 25000);
+
+        // Atualiza também imediatamente quando a pessoa volta para a aba do navegador
+        const handleVisChange = () => {
+          if (document.visibilityState === 'visible') {
+            verificarSincronizacao(true);
+          }
+        };
+        document.addEventListener('visibilitychange', handleVisChange);
+
+        return () => {
+          clearInterval(intervalId);
+          document.removeEventListener('visibilitychange', handleVisChange);
+        };
+      }, [transactions.length]);
 
       const [editingTransaction, setEditingTransaction] = useState(null);
 
@@ -424,6 +501,22 @@
         setTodasEscalas(novasTodasEscalas);
         try {
           localStorage.setItem('fc26_todas_escalas', JSON.stringify(novasTodasEscalas));
+        } catch(e){}
+
+        // Envia a escala do casal para a Planilha Google em segundo plano
+        try {
+          fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              action: 'save_escala',
+              todasEscalas: novasTodasEscalas,
+              updatedBy: perfilEscala === 'usuario' ? 'オスマン' : 'シルレイ'
+            })
+          }).then(() => {
+            showToast('✓ Escala sincronizada na nuvem com seu parceiro(a)!');
+          }).catch(e => console.warn(e));
         } catch(e){}
       };
       const [toastMessage, setToastMessage] = useState(null);
@@ -704,6 +797,33 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
       return (
         <div className="w-full max-w-md mx-auto min-h-screen flex flex-col bg-[#F5F2EB] relative pb-24 select-none">
           
+          {/* POPUP / BANNER DE ATUALIZAÇÃO EM TEMPO REAL */}
+          {popupNotificacao && (
+            <div className="fixed top-14 left-4 right-4 z-50 bg-[#0F2C59] text-white p-3.5 rounded-2xl shadow-2xl border-2 border-emerald-400/80 flex items-center justify-between animate-in slide-in-from-top duration-300">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center text-xl shrink-0 animate-bounce">
+                  🔔
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-300">Atualização Recebida</span>
+                    <span className="text-[10px] text-slate-400">• {popupNotificacao.hora}</span>
+                  </div>
+                  <h4 className="text-xs font-bold text-white">
+                    {popupNotificacao.local} atualizado {popupNotificacao.autor ? `por ${popupNotificacao.autor}` : 'na base'}!
+                  </h4>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPopupNotificacao(null)}
+                className="text-slate-400 hover:text-white text-sm font-bold p-1 ml-2"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
           {/* Toast Notification */}
           {toastMessage && (
             <div className="fixed top-3 left-4 right-4 z-50 px-4 py-3 bg-[#081B38] text-white text-xs font-semibold rounded-2xl shadow-2xl border border-slate-700 flex items-center justify-center gap-2 animate-in fade-in slide-in-from-top duration-200">
@@ -757,7 +877,17 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
           <header className="px-4 py-3.5 flex justify-between items-center bg-[#F5F2EB]/95 sticky top-0 z-20 backdrop-blur-md border-b border-slate-200/70">
             <div>
               <span className="text-[10px] tracking-widest uppercase font-bold text-[#0F2C59]">Controle 2026</span>
-              <h1 className="text-xl font-serif font-bold text-slate-900 leading-tight">FinControl</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl font-serif font-bold text-slate-900 leading-tight">FinControl</h1>
+                
+                {/* ANIMAÇÃO MOTIVACIONAL E INSPIRACIONAL */}
+                <div className="hidden sm:flex items-center gap-1.5 bg-gradient-to-r from-amber-50 to-emerald-50 px-2.5 py-0.5 rounded-full border border-amber-200/80 shadow-2xs">
+                  <span className="text-xs animate-pulse">✨</span>
+                  <span className="text-[10px] font-semibold text-slate-700 tracking-tight transition-opacity duration-500">
+                    {FRASES_MOTIVACIONAIS[indiceFrase]}
+                  </span>
+                </div>
+              </div>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
@@ -774,6 +904,14 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
             {currentTab === 'dashboard' && (
               <div className="space-y-4">
                 
+                {/* BANNER MOTIVACIONAL MOBILE-FIRST */}
+                <div className="flex items-center gap-2 bg-gradient-to-r from-amber-50 via-emerald-50 to-amber-50 p-2.5 rounded-2xl border border-amber-200/70 shadow-2xs text-xs">
+                  <span className="text-base animate-pulse shrink-0">✨</span>
+                  <span className="font-medium text-slate-700 text-[11px] leading-tight transition-all duration-500">
+                    {FRASES_MOTIVACIONAIS[indiceFrase]}
+                  </span>
+                </div>
+
                 {/* COTAÇÃO FOREX: IENE / DÓLAR (USD/JPY) */}
                 <div className="bg-white px-4 py-3 rounded-2xl border border-slate-200/90 shadow-xs flex justify-between items-center text-xs">
                   <div className="flex items-center gap-2.5">
