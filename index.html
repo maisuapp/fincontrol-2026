@@ -314,22 +314,59 @@
         { id: '半', label: '半 (Meio período)', bg: 'bg-slate-100 text-slate-700 border-slate-300' },
       ];
 
-      // Escala inicial preenchida conforme o My勤務カレンダー da imagem
-      const ESCALA_INICIAL = {
+      // Calendário Dinâmico: Lê a data atual e permite navegar entre meses
+      const dataSistema = new Date();
+      const [anoCalendario, setAnoCalendario] = useState(dataSistema.getFullYear());
+      const [mesCalendario, setMesCalendario] = useState(dataSistema.getMonth()); // 0=Jan, 8=Set, 9=Out...
+
+      const NOMES_MESES = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+      ];
+
+      // Escala padrão inicial para Setembro de 2026
+      const ESCALA_SET_2026 = {
         3: '休', 4: '休', 9: '休', 10: '休', 15: '休', 16: '休',
         17: '欠', 21: '休', 22: '休', 27: '休', 28: '休'
       };
 
-      const [escalaMes, setEscalaMes] = useState(() => {
+      // Banco local de escalas separadas por ano e mês (ex: fc26_escala_2026_9)
+      const getStorageKey = (ano, mes) => `fc26_escala_${ano}_${mes + 1}`;
+
+      const [todasEscalas, setTodasEscalas] = useState(() => {
         try {
-          const local = localStorage.getItem('fc26_escala_setembro_2026');
-          return local ? JSON.parse(local) : ESCALA_INICIAL;
+          const local = localStorage.getItem('fc26_todas_escalas');
+          const obj = local ? JSON.parse(local) : {};
+          if (!obj['2026_9']) obj['2026_9'] = ESCALA_SET_2026;
+          return obj;
         } catch(e) {
-          return ESCALA_INICIAL;
+          return { '2026_9': ESCALA_SET_2026 };
         }
       });
 
-      const [carimboAtivo, setCarimboAtivo] = useState(null); // Modo de carimbo rápido
+      const chaveMesAtual = `${anoCalendario}_${mesCalendario + 1}`;
+      const escalaMes = todasEscalas[chaveMesAtual] || {};
+
+      const [carimboAtivo, setCarimboAtivo] = useState(null);
+
+      // Navegação de Meses
+      const handleMesAnterior = () => {
+        if (mesCalendario === 0) {
+          setMesCalendario(11);
+          setAnoCalendario(a => a - 1);
+        } else {
+          setMesCalendario(m => m - 1);
+        }
+      };
+
+      const handleProximoMes = () => {
+        if (mesCalendario === 11) {
+          setMesCalendario(0);
+          setAnoCalendario(a => a + 1);
+        } else {
+          setMesCalendario(m => m + 1);
+        }
+      };
 
       // Alterna carimbo ao clicar no dia (ciclo ou carimbo ativo)
       const handleDiaClick = (dia) => {
@@ -340,22 +377,26 @@
         if (carimboAtivo !== null) {
           novo = atual === carimboAtivo ? '' : carimboAtivo;
         } else {
-          // Ciclo de clique: Vazio -> 休 -> 有 -> 欠 -> 夜 -> 明 -> Vazio
           const ciclo = ['', '休', '有', '欠', '夜', '明'];
           const proxIdx = (ciclo.indexOf(atual) + 1) % ciclo.length;
           novo = ciclo[proxIdx];
         }
 
-        const novaEscala = { ...escalaMes };
+        const novaEscalaDoMes = { ...escalaMes };
         if (novo) {
-          novaEscala[dia] = novo;
+          novaEscalaDoMes[dia] = novo;
         } else {
-          delete novaEscala[dia];
+          delete novaEscalaDoMes[dia];
         }
 
-        setEscalaMes(novaEscala);
+        const novasTodasEscalas = {
+          ...todasEscalas,
+          [chaveMesAtual]: novaEscalaDoMes
+        };
+
+        setTodasEscalas(novasTodasEscalas);
         try {
-          localStorage.setItem('fc26_escala_setembro_2026', JSON.stringify(novaEscala));
+          localStorage.setItem('fc26_todas_escalas', JSON.stringify(novasTodasEscalas));
         } catch(e){}
       };
       const [toastMessage, setToastMessage] = useState(null);
@@ -728,101 +769,148 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                   </div>
                 </div>
 
-                {/* CALENDÁRIO DE ESCALA EDITÁVEL (My勤務カレンダー - FinControl Edition) */}
-                <div className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-xs space-y-3">
-                  
-                  {/* Cabeçalho */}
-                  <div className="flex justify-between items-center pb-2 border-b border-slate-100">
-                    <div>
-                      <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[#0F2C59]">
-                        <span>《My 勤務カレンダー》</span>
-                      </div>
-                      <h3 className="font-serif font-bold text-slate-900 text-base">
-                        Setembro 2026
-                      </h3>
-                    </div>
-                    
-                    {/* Contador de Folgas */}
-                    <div className="text-right">
-                      <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1 border border-emerald-200 shadow-2xs">
-                        <span>休</span>
-                        <span>{Object.values(escalaMes).filter(v => v === '休').length} folgas</span>
-                      </span>
-                      <p className="text-[9px] text-slate-400 mt-0.5">Hoje: 10 de Setembro (木)</p>
-                    </div>
-                  </div>
+                {/* CALENDÁRIO DINÂMICO DE ESCALA (Transição Automática de Mês + Navegação << >>) */}
+                {(() => {
+                  // Cálculos dinâmicos para qualquer mês e ano
+                  const primeiroDiaSemana = new Date(anoCalendario, mesCalendario, 1).getDay(); // 0=Dom, 1=Seg...
+                  const totalDiasNoMes = new Date(anoCalendario, mesCalendario + 1, 0).getDate(); // 28, 29, 30 ou 31
+                  const hojeData = new Date();
+                  const ehMesAtual = (hojeData.getFullYear() === anoCalendario && hojeData.getMonth() === mesCalendario);
+                  const diaHojeNumero = hojeData.getDate();
 
-                  {/* Dias da Semana (日 月 火 水 木 金 土) */}
-                  <div className="grid grid-cols-7 text-center text-xs font-bold py-1 bg-slate-50 rounded-xl">
-                    <span className="text-rose-500">日</span>
-                    <span className="text-slate-600">月</span>
-                    <span className="text-slate-600">火</span>
-                    <span className="text-slate-600">水</span>
-                    <span className="text-slate-600">木</span>
-                    <span className="text-slate-600">金</span>
-                    <span className="text-blue-500">土</span>
-                  </div>
+                  // Feriados oficiais do Japão para destaque visual (祝)
+                  const feriadosJapao = {
+                    '2026_9': [21, 22, 23], // Silver Week: 敬老の日, 国民の休日, 秋分の日
+                    '2026_10': [12],        // スポーツの日
+                    '2026_11': [3, 23],     // 文化の日, 勤労感謝の日
+                    '2026_12': [],
+                    '2026_1': [1, 12],      // 元日, 成人の日
+                    '2026_2': [11, 23],     // 建国記念の日, 天皇誕生日
+                  };
+                  const listaFeriados = feriadosJapao[`${anoCalendario}_${mesCalendario + 1}`] || [];
 
-                  {/* Grade de 30 Dias (Início na Terça-feira) */}
-                  <div className="grid grid-cols-7 gap-1 text-center">
-                    {/* Domingo e Segunda antes do dia 1 */}
-                    <div className="min-h-[48px] bg-slate-50/40 rounded-xl border border-transparent"></div>
-                    <div className="min-h-[48px] bg-slate-50/40 rounded-xl border border-transparent"></div>
-
-                    {Array.from({ length: 30 }, (_, i) => i + 1).map((dia) => {
-                      const carimbo = escalaMes[dia] || '';
-                      const diaSemana = (dia + 1) % 7; // 0=Dom, 6=Sab
-                      const isHoje = dia === 10;
-                      const isFeriado = [21, 22, 23].includes(dia); // Silver Week no Japão (敬老の日 / 秋分の日)
+                  return (
+                    <div className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-xs space-y-3">
                       
-                      let badgeColor = 'bg-emerald-100 text-emerald-800 border-emerald-300';
-                      if (carimbo === '有') badgeColor = 'bg-amber-100 text-amber-800 border-amber-300';
-                      if (carimbo === '欠') badgeColor = 'bg-sky-100 text-sky-800 border-sky-300';
-                      if (carimbo === '夜') badgeColor = 'bg-purple-100 text-purple-800 border-purple-300';
-                      if (carimbo === '明') badgeColor = 'bg-orange-100 text-orange-800 border-orange-300';
-                      if (carimbo === '半') badgeColor = 'bg-slate-100 text-slate-700 border-slate-300';
-
-                      return (
-                        <button
-                          key={dia}
-                          type="button"
-                          onClick={() => handleDiaClick(dia)}
-                          className={`min-h-[50px] p-1 rounded-xl flex flex-col justify-between items-center transition active:scale-90 border ${
-                            isHoje 
-                              ? 'ring-2 ring-[#0F2C59] bg-amber-50/70 border-amber-300 shadow-xs' 
-                              : diaSemana === 0 
-                              ? 'bg-rose-50/30 border-rose-100/70 hover:bg-rose-50' 
-                              : diaSemana === 6 
-                              ? 'bg-blue-50/30 border-blue-100/70 hover:bg-blue-50' 
-                              : 'bg-white border-slate-100 hover:bg-slate-50'
-                          }`}
-                          title={`Clique para alterar escala do dia ${dia}`}
-                        >
-                          <div className="w-full flex justify-between items-center px-0.5">
-                            <span className={`text-[11px] font-bold leading-none ${
-                              diaSemana === 0 ? 'text-rose-600' : diaSemana === 6 ? 'text-blue-600' : 'text-slate-700'
-                            }`}>
-                              {dia}
+                      {/* Cabeçalho com Navegação << Mês >> e Transição Automática */}
+                      <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={handleMesAnterior}
+                            className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center text-xs active:scale-90 transition"
+                            title="Mês anterior"
+                          >
+                            &lt;&lt;
+                          </button>
+                          
+                          <div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#0F2C59] block leading-none">
+                              《My 勤務カレンダー》
                             </span>
-                            {isFeriado && (
-                              <span className="text-[8px] bg-rose-600 text-white font-bold px-1 rounded-xs leading-none">
-                                祝
-                              </span>
-                            )}
+                            <h3 className="font-serif font-bold text-slate-900 text-base leading-tight">
+                              {NOMES_MESES[mesCalendario]} {anoCalendario}
+                            </h3>
                           </div>
 
-                          {/* Carimbo no Dia */}
-                          {carimbo ? (
-                            <span className={`w-full py-0.5 rounded-md text-[10px] font-bold border ${badgeColor} shadow-2xs leading-tight`}>
-                              {carimbo}
-                            </span>
-                          ) : (
-                            <span className="text-[9px] text-transparent leading-none">•</span>
-                          )}
-                        </button>
-                      );
-                    })}
-                  </div>
+                          <button
+                            type="button"
+                            onClick={handleProximoMes}
+                            className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center text-xs active:scale-90 transition"
+                            title="Próximo mês"
+                          >
+                            &gt;&gt;
+                          </button>
+                        </div>
+                        
+                        {/* Contador de Folgas e Dia Atual */}
+                        <div className="text-right">
+                          <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1 border border-emerald-200 shadow-2xs">
+                            <span>休</span>
+                            <span>{Object.values(escalaMes).filter(v => v === '休').length} folgas</span>
+                          </span>
+                          <p className="text-[9px] text-slate-400 mt-0.5">
+                            {ehMesAtual ? `Hoje: dia ${diaHojeNumero}` : 'Visualizando escala'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Dias da Semana (日 月 火 水 木 金 土) */}
+                      <div className="grid grid-cols-7 text-center text-xs font-bold py-1 bg-slate-50 rounded-xl">
+                        <span className="text-rose-500">日</span>
+                        <span className="text-slate-600">月</span>
+                        <span className="text-slate-600">火</span>
+                        <span className="text-slate-600">水</span>
+                        <span className="text-slate-600">木</span>
+                        <span className="text-slate-600">金</span>
+                        <span className="text-blue-500">土</span>
+                      </div>
+
+                      {/* Grade Dinâmica do Mês (Preenche os dias vazios exatos de acordo com o 1º dia) */}
+                      <div className="grid grid-cols-7 gap-1 text-center">
+                        {/* Células vazias que antecedem o dia 1 */}
+                        {Array.from({ length: primeiroDiaSemana }).map((_, idx) => (
+                          <div key={'empty-' + idx} className="min-h-[48px] bg-slate-50/40 rounded-xl border border-transparent"></div>
+                        ))}
+
+                        {/* Dias 1 ao último dia do mês (calculado dinamicamente: 28, 29, 30 ou 31) */}
+                        {Array.from({ length: totalDiasNoMes }, (_, i) => i + 1).map((dia) => {
+                          const carimbo = escalaMes[dia] || '';
+                          const diaSemana = (primeiroDiaSemana + dia - 1) % 7; // 0=Dom, 6=Sab
+                          const isHoje = ehMesAtual && (dia === diaHojeNumero);
+                          const isFeriado = listaFeriados.includes(dia);
+                          
+                          let badgeColor = 'bg-emerald-100 text-emerald-800 border-emerald-300';
+                          if (carimbo === '有') badgeColor = 'bg-amber-100 text-amber-800 border-amber-300';
+                          if (carimbo === '欠') badgeColor = 'bg-sky-100 text-sky-800 border-sky-300';
+                          if (carimbo === '夜') badgeColor = 'bg-purple-100 text-purple-800 border-purple-300';
+                          if (carimbo === '明') badgeColor = 'bg-orange-100 text-orange-800 border-orange-300';
+                          if (carimbo === '半') badgeColor = 'bg-slate-100 text-slate-700 border-slate-300';
+
+                          return (
+                            <button
+                              key={'dia-' + dia}
+                              type="button"
+                              onClick={() => handleDiaClick(dia)}
+                              className={`min-h-[50px] p-1 rounded-xl flex flex-col justify-between items-center transition active:scale-90 border ${
+                                isHoje 
+                                  ? 'ring-2 ring-[#0F2C59] bg-amber-50/70 border-amber-300 shadow-xs' 
+                                  : diaSemana === 0 
+                                  ? 'bg-rose-50/30 border-rose-100/70 hover:bg-rose-50' 
+                                  : diaSemana === 6 
+                                  ? 'bg-blue-50/30 border-blue-100/70 hover:bg-blue-50' 
+                                  : 'bg-white border-slate-100 hover:bg-slate-50'
+                              }`}
+                              title={`Clique para carimbar dia ${dia}`}
+                            >
+                              <div className="w-full flex justify-between items-center px-0.5">
+                                <span className={`text-[11px] font-bold leading-none ${
+                                  diaSemana === 0 ? 'text-rose-600' : diaSemana === 6 ? 'text-blue-600' : 'text-slate-700'
+                                }`}>
+                                  {dia}
+                                </span>
+                                {isFeriado && (
+                                  <span className="text-[8px] bg-rose-600 text-white font-bold px-1 rounded-xs leading-none">
+                                    祝
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Carimbo de Turno */}
+                              {carimbo ? (
+                                <span className={`w-full py-0.5 rounded-md text-[10px] font-bold border ${badgeColor} shadow-2xs leading-tight`}>
+                                  {carimbo}
+                                </span>
+                              ) : (
+                                <span className="text-[9px] text-transparent leading-none">•</span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })()}
 
                   {/* BARRA DE CARIMBO RÁPIDO (入力モード) */}
                   <div className="pt-2.5 border-t border-slate-100 space-y-1.5">
