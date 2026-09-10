@@ -411,15 +411,20 @@ Extraia no formato JSON estrito:
 }
 Retorne exclusivamente o JSON, sem crases markdown.`;
 
-          // Endpoints de Produção (v1 Oficial + v1beta)
-          // Removido response_mime_type para evitar o gargalo 503 dos clusters de JSON estruturado
-          const endpointsToTry = [
-            'https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent',
-            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent',
-            'https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent',
-            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
-            'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent'
+          // Descoberta dinâmica com prioridade absoluta para a geração Gemini 3.5 recomendada pelo Google
+          const modelsOrder = [
+            'gemini-3.5-flash-lite',
+            'gemini-3.5-flash',
+            'gemini-2.5-flash',
+            'gemini-flash-latest'
           ];
+
+          // Gera endpoints testando tanto v1beta quanto v1
+          const endpointsToTry = [];
+          for (const m of modelsOrder) {
+            endpointsToTry.push(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`);
+            endpointsToTry.push(`https://generativelanguage.googleapis.com/v1/models/${m}:generateContent`);
+          }
 
           let res = null;
           let lastErr = '';
