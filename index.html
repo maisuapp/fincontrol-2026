@@ -953,7 +953,52 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
             {currentTab === 'dashboard' && (
               <div className="space-y-4">
                 
-                {/* COTAÇÃO FOREX: IENE / DÓLAR (USD/JPY) */}
+                {/* Card de Liquidez com EMOJI ANIMADO DE STATUS */}
+                <div className="bg-[#0F2C59] text-white rounded-3xl p-5 shadow-lg relative overflow-hidden">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[10px] uppercase tracking-wider text-blue-200 font-bold">Saldo Líquido Acumulado</span>
+                    
+                    {/* Badge e Emoji Animado */}
+                    {saldo < 0 ? (
+                      <div className="flex items-center gap-1.5 bg-rose-600/90 px-2.5 py-0.5 rounded-full">
+                        <span className="text-sm animate-wobble">🫣</span>
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-white">Atenção</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 bg-emerald-600/90 px-2.5 py-0.5 rounded-full">
+                        <span className="text-sm animate-happy">🤑</span>
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-white">Saudável</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex items-baseline gap-2 my-2">
+                    <h2 className="text-3xl sm:text-4xl font-extrabold text-rose-200 tracking-tight">
+                      -¥ {Math.abs(saldo).toLocaleString('ja-JP')}
+                    </h2>
+                    <span className="text-2xl animate-wobble">
+                      {saldo < 0 ? '😟' : '😃'}
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-blue-200/90 mb-3">
+                    {saldo < 0 ? 'O ritmo pede cautela nas categorias que mais pesam.' : 'Saldo positivo! Bom ritmo de poupança.'}
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-2 pt-3 border-t border-blue-900/60 text-xs">
+                    <div>
+                      <span className="text-[10px] text-blue-300 uppercase">Receitas</span>
+                      <p className="font-bold text-emerald-400 text-sm">¥ {receitasTotais.toLocaleString('ja-JP')}</p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-blue-300 uppercase">Despesas</span>
+                      <p className="font-bold text-rose-300 text-sm">¥ {despesasTotais.toLocaleString('ja-JP')}</p>
+                    </div>
+                  </div>
+                </div>
+
+                
+{/* COTAÇÃO FOREX: IENE / DÓLAR (USD/JPY) */}
                 <div className="bg-white px-4 py-3 rounded-2xl border border-slate-200/90 shadow-xs flex justify-between items-center text-xs">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#0F2C59] flex items-center justify-center font-bold text-sm shrink-0 border border-blue-100">
@@ -1209,50 +1254,6 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                     </div>
                   );
                 })()}
-
-                {/* Card de Liquidez com EMOJI ANIMADO DE STATUS */}
-                <div className="bg-[#0F2C59] text-white rounded-3xl p-5 shadow-lg relative overflow-hidden">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-[10px] uppercase tracking-wider text-blue-200 font-bold">Saldo Líquido Acumulado</span>
-                    
-                    {/* Badge e Emoji Animado */}
-                    {saldo < 0 ? (
-                      <div className="flex items-center gap-1.5 bg-rose-600/90 px-2.5 py-0.5 rounded-full">
-                        <span className="text-sm animate-wobble">🫣</span>
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-white">Atenção</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1.5 bg-emerald-600/90 px-2.5 py-0.5 rounded-full">
-                        <span className="text-sm animate-happy">🤑</span>
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-white">Saudável</span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="flex items-baseline gap-2 my-2">
-                    <h2 className="text-3xl sm:text-4xl font-extrabold text-rose-200 tracking-tight">
-                      -¥ {Math.abs(saldo).toLocaleString('ja-JP')}
-                    </h2>
-                    <span className="text-2xl animate-wobble">
-                      {saldo < 0 ? '😟' : '😃'}
-                    </span>
-                  </div>
-
-                  <p className="text-[11px] text-blue-200/90 mb-3">
-                    {saldo < 0 ? 'O ritmo pede cautela nas categorias que mais pesam.' : 'Saldo positivo! Bom ritmo de poupança.'}
-                  </p>
-
-                  <div className="grid grid-cols-2 gap-2 pt-3 border-t border-blue-900/60 text-xs">
-                    <div>
-                      <span className="text-[10px] text-blue-300 uppercase">Receitas</span>
-                      <p className="font-bold text-emerald-400 text-sm">¥ {receitasTotais.toLocaleString('ja-JP')}</p>
-                    </div>
-                    <div>
-                      <span className="text-[10px] text-blue-300 uppercase">Despesas</span>
-                      <p className="font-bold text-rose-300 text-sm">¥ {despesasTotais.toLocaleString('ja-JP')}</p>
-                    </div>
-                  </div>
-                </div>
 
                 {/* Status do Mês */}
                 <div className="bg-white rounded-2xl p-3.5 border border-slate-200/80 shadow-xs flex items-center gap-3">
