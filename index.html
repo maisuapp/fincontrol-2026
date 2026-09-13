@@ -170,6 +170,51 @@
       return true;
     }
 
+    
+    // AUDITORIA INTELIGENTE DE DUPLICIDADE EM TEMPO REAL
+    function verificarDuplicidade(novoTx, listaExistente) {
+      if (!novoTx || !novoTx.valor || !novoTx.estabelecimento) return null;
+      const novoValor = parseFloat(novoTx.valor) || 0;
+      const novaLoja = padronizarNomeLoja(novoTx.estabelecimento).toLowerCase();
+      const novaData = novoTx.data || '';
+
+      for (const tx of listaExistente) {
+        if (novoTx.id && tx.id === novoTx.id) continue;
+
+        const valExistente = parseFloat(tx.valor) || 0;
+        const lojaExistente = padronizarNomeLoja(tx.estabelecimento).toLowerCase();
+        const dataExistente = tx.data || '';
+
+        const mesmoValor = Math.abs(valExistente - novoValor) === 0;
+        const mesmaLoja = (
+          lojaExistente === novaLoja ||
+          lojaExistente.includes(novaLoja) ||
+          novaLoja.includes(lojaExistente)
+        );
+
+        let diasDiff = 999;
+        if (novaData && dataExistente) {
+          const d1 = new Date(novaData);
+          const d2 = new Date(dataExistente);
+          if (!isNaN(d1.getTime()) && !isNaN(d2.getTime())) {
+            diasDiff = Math.abs((d1 - d2) / (1000 * 60 * 60 * 24));
+          }
+        }
+
+        // Se for mesma loja, mesmo valor e ocorrido no mesmo dia ou nos últimos 4 dias
+        if (mesmoValor && mesmaLoja && diasDiff <= 4) {
+          return {
+            existente: tx,
+            diasDiff: Math.round(diasDiff),
+            motivo: diasDiff === 0 
+              ? 'Lançamento com mesmo valor e mesma loja registrado na mesma data!'
+              : `Lançamento idêntico registrado com ${Math.round(diasDiff)} dia(s) de diferença!`
+          };
+        }
+      }
+      return null;
+    }
+
     function padronizarNomeLoja(nomeBruto) {
       if (!nomeBruto || typeof nomeBruto !== 'string') return 'TRIAL スーパー';
       const limpo = nomeBruto.trim();
@@ -347,16 +392,29 @@
                 observacoes: r[6] || ''
               })).filter(t => t.data && t.valor > 0).reverse();
 
-              // Detecta se houve novos lançamentos vindos de outro aparelho
+              // Detecta se houve novos lançamentos vindos de outro aparelho e protege contra duplicatas
               if (carregadas.length > 0) {
+                const vistos = new Set();
+                const unicos = [];
+                for (const item of carregadas) {
+                  const sig = `${item.data}_${item.valor}_${padronizarNomeLoja(item.estabelecimento)}`.toLowerCase();
+                  if (!vistos.has(sig)) {
+                    vistos.add(sig);
+                    unicos.push(item);
+                  } else if (item.estabelecimento.includes('KINEZO') && unicos.filter(u => u.data === item.data && u.valor === item.valor && u.estabelecimento.includes('KINEZO')).length < 2) {
+                    // Preserva os dois ingressos reais de 1100 do cinema Kinezo
+                    unicos.push(item);
+                  }
+                }
+
                 const totalAtual = transactions.length;
-                if (ehPolling && carregadas.length > totalAtual) {
+                if (ehPolling && unicos.length > totalAtual) {
                   mostrarAlertaAtualizacao('Lançamentos Financeiros');
                 }
-                setTransactions(carregadas);
-                localStorage.setItem('fc26_transactions', JSON.stringify(carregadas));
+                setTransactions(unicos);
+                localStorage.setItem('fc26_transactions', JSON.stringify(unicos));
                 if (!ehPolling) {
-                  showToast(`✓ Sincronizado com o Drive: ${carregadas.length} lançamentos!`);
+                  showToast(`✓ Sincronizado com o Drive: ${unicos.length} lançamentos limpos!`);
                 }
               }
             }
@@ -407,6 +465,9 @@
       }, [transactions.length]);
 
       const [editingTransaction, setEditingTransaction] = useState(null);
+
+      // Estado do Modal de Auditoria de Duplicidade
+      const [alertaDuplicado, setAlertaDuplicado] = useState(null);
 
       // Estados de Filtros na aba Lançamentos
       const [filtroTipo, setFiltroTipo] = useState('todos');
@@ -593,12 +654,26 @@
         }
       };
 
-      // Salva Lançamento com Padronização Automática
-      const handleSave = async (txData) => {
+      // Salva Lançamento com Auditoria Automática de Duplicidade
+      const handleSave = async (txData, forcarGravacao = false) => {
         const dadosPadronizados = {
           ...txData,
           estabelecimento: padronizarNomeLoja(txData.estabelecimento)
         };
+
+        // Se NÃO estiver forçando a gravação e NÃO for edição de item existente, audita duplicidade
+        if (!forcarGravacao && (!editingTransaction || !editingTransaction.id)) {
+          const dupFound = verificarDuplicidade(dadosPadronizados, transactions);
+          if (dupFound) {
+            // Abre o modal de auditoria de duplicidade para o usuário decidir
+            setAlertaDuplicado({
+              novoTx: dadosPadronizados,
+              existente: dupFound.existente,
+              motivo: dupFound.motivo
+            });
+            return;
+          }
+        }
 
         let updatedList;
         if (editingTransaction && editingTransaction.id) {
@@ -1618,6 +1693,80 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
             {isScanning ? '⏳' : '📷'}
           </button>
 
+          {/* MODAL DE AUDITORIA INTELIGENTE DE DUPLICIDADE */}
+          {alertaDuplicado && (
+            <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+              <div className="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl border-2 border-amber-400 space-y-4">
+                
+                <div className="flex items-center gap-2.5 text-amber-600">
+                  <span className="text-2xl animate-bounce">⚠️</span>
+                  <div>
+                    <h3 className="text-sm font-bold uppercase tracking-wide text-slate-800">
+                      Possível Duplicidade Detectada!
+                    </h3>
+                    <p className="text-[11px] text-amber-700 font-medium leading-tight">
+                      {alertaDuplicado.motivo}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Comparação dos dois registros */}
+                <div className="space-y-2 text-xs">
+                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">📌 Já Registrado Anteriormente:</span>
+                    <div className="flex justify-between items-center font-bold text-slate-800">
+                      <span>{alertaDuplicado.existente.estabelecimento}</span>
+                      <span className="text-rose-600 font-bold">¥ {Math.round(alertaDuplicado.existente.valor).toLocaleString('ja-JP')}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500">{alertaDuplicado.existente.data} • {alertaDuplicado.existente.categoria}</p>
+                  </div>
+
+                  <div className="p-2.5 bg-amber-50/70 rounded-xl border border-amber-200">
+                    <span className="text-[10px] uppercase font-bold text-amber-800 block mb-0.5">🆕 Novo que você está tentando lançar:</span>
+                    <div className="flex justify-between items-center font-bold text-slate-800">
+                      <span>{alertaDuplicado.novoTx.estabelecimento}</span>
+                      <span className="text-rose-600 font-bold">¥ {Math.round(alertaDuplicado.novoTx.valor).toLocaleString('ja-JP')}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500">{alertaDuplicado.novoTx.data} • {alertaDuplicado.novoTx.categoria}</p>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-slate-500 text-center leading-tight">
+                  Deseja descartar para não somar duas vezes ou foi uma compra repetida na mesma loja?
+                </p>
+
+                {/* Botões de Ação */}
+                <div className="space-y-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAlertaDuplicado(null);
+                      setIsModalOpen(false);
+                      showToast('✓ Lançamento duplicado descartado!');
+                    }}
+                    className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs shadow-md transition active:scale-95 flex items-center justify-center gap-1.5"
+                  >
+                    <span>🗑️</span>
+                    <span>Descartar Lançamento (Não Duplicar)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const dadosParaSalvar = alertaDuplicado.novoTx;
+                      setAlertaDuplicado(null);
+                      handleSave(dadosParaSalvar, true); // força gravação confirmada
+                    }}
+                    className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition active:scale-95"
+                  >
+                    Confirmar e Registrar Mesmo Assim
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          )}
+
           {/* Bottom Sheet Modal (Criar / Editar / Excluir) */}
           {isModalOpen && (
             <OneTapModal
@@ -1845,3 +1994,4 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
   </script>
 </body>
 </html>
+
