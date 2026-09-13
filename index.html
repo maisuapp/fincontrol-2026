@@ -469,6 +469,79 @@
       // Estado do Modal de Auditoria de Duplicidade
       const [alertaDuplicado, setAlertaDuplicado] = useState(null);
 
+      // CAIXINHAS DE RESERVA (Shaken, Renovação de Aluguel, Emergência, etc.)
+      const RESERVAS_PADRAO = [
+        { id: 'res-shaken', nome: 'Shaken (Inspeção Veicular)', icone: '🚗', saldoInicial: 0 },
+        { id: 'res-aluguel', nome: 'Renovação Contrato Aluguel', icone: '🏠', saldoInicial: 0 },
+        { id: 'res-emergencia', nome: 'Reserva de Emergência', icone: '🛡️', saldoInicial: 0 },
+      ];
+
+      const [listaReservas, setListaReservas] = useState(() => {
+        try {
+          const local = localStorage.getItem('fc26_lista_reservas');
+          return local ? JSON.parse(local) : RESERVAS_PADRAO;
+        } catch(e) {
+          return RESERVAS_PADRAO;
+        }
+      });
+
+      const [isModalNovaReservaOpen, setIsModalNovaReservaOpen] = useState(false);
+
+      // Calcula o saldo dinâmico de cada reserva baseado nos aportes e retiradas
+      const saldosPorReserva = {};
+      listaReservas.forEach(r => {
+        saldosPorReserva[r.id] = r.saldoInicial || 0;
+      });
+
+      transactions.forEach(t => {
+        const cat = t.categoria || '';
+        const tipo = t.tipo || '';
+        const val = parseFloat(t.valor) || 0;
+
+        listaReservas.forEach(r => {
+          if (cat.includes(r.nome) || (t.estabelecimento && t.estabelecimento.includes(r.nome))) {
+            if (tipo.includes('Aporte') || tipo.includes('Depósito')) {
+              saldosPorReserva[r.id] = (saldosPorReserva[r.id] || 0) + val;
+            } else if (tipo.includes('Retirada') || tipo.includes('Resgate')) {
+              saldosPorReserva[r.id] = (saldosPorReserva[r.id] || 0) - val;
+            }
+          }
+        });
+      });
+
+      const totalAlocadoReservas = Object.values(saldosPorReserva).reduce((acc, v) => acc + v, 0);
+
+      // Função para cadastrar uma nova reserva personalizada
+      const handleAdicionarNovaReserva = (nome, icone, saldoInicial = 0) => {
+        if (!nome.trim()) return;
+        const nova = {
+          id: 'res-' + Date.now(),
+          nome: nome.trim(),
+          icone: icone || '🏦',
+          saldoInicial: parseFloat(saldoInicial) || 0
+        };
+        const atualizadas = [...listaReservas, nova];
+        setListaReservas(atualizadas);
+        try {
+          localStorage.setItem('fc26_lista_reservas', JSON.stringify(atualizadas));
+        } catch(e){}
+        setIsModalNovaReservaOpen(false);
+        showToast(`✓ Reserva "${nome}" criada com sucesso!`);
+      };
+
+      // Abre o modal diretamente para Aporte (+) ou Retirada (-) em uma reserva
+      const handleAcaoReserva = (reserva, ehRetirada = false) => {
+        setEditingTransaction({
+          tipo: ehRetirada ? 'Retirada Reserva' : 'Aporte Reserva',
+          categoria: `Reserva: ${reserva.nome}`,
+          estabelecimento: reserva.nome,
+          valor: '',
+          data: new Date().toISOString().split('T')[0],
+          reservaId: reserva.id
+        });
+        setIsModalOpen(true);
+      };
+
       // Estados de Filtros na aba Lançamentos
       const [filtroTipo, setFiltroTipo] = useState('todos');
       const [filtroCategoria, setFiltroCategoria] = useState('todas');
@@ -1056,6 +1129,26 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                     </span>
                   </div>
 
+                  {/* Detalhamento de Reservas vs. Caixa Livre Disponível */}
+                  <div className="bg-blue-950/50 rounded-2xl p-3 my-2.5 border border-blue-800/40 text-xs space-y-1.5">
+                    <div className="flex justify-between items-center text-blue-200 font-medium">
+                      <span className="flex items-center gap-1.5">
+                        <span>🏦</span>
+                        <span>Total Guardado em Reservas:</span>
+                      </span>
+                      <span className="font-bold text-amber-300">¥ {totalAlocadoReservas.toLocaleString('ja-JP')}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-white font-bold pt-1 border-t border-blue-900/60">
+                      <span className="flex items-center gap-1.5 text-blue-100">
+                        <span>💰</span>
+                        <span>Caixa Livre Real (Saldo - Reservas):</span>
+                      </span>
+                      <span className={saldo - totalAlocadoReservas < 0 ? "text-rose-300 font-extrabold text-sm" : "text-emerald-300 font-extrabold text-sm"}>
+                        {saldo - totalAlocadoReservas < 0 ? '-' : ''}¥ {Math.abs(saldo - totalAlocadoReservas).toLocaleString('ja-JP')}
+                      </span>
+                    </div>
+                  </div>
+
                   <p className="text-[11px] text-blue-200/90 mb-3">
                     {saldo < 0 ? 'O ritmo pede cautela nas categorias que mais pesam.' : 'Saldo positivo! Bom ritmo de poupança.'}
                   </p>
@@ -1081,6 +1174,70 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                   <span className="text-lg leading-none">+</span>
                   <span>Registrar Despesa / Receita</span>
                 </button>
+
+                {/* SEÇÃO DE CONTROLE DE RESERVAS (Shaken, Aluguel, Emergência) */}
+                <div className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-xs space-y-3">
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#0F2C59] block">
+                        Caixinhas de Provisão
+                      </span>
+                      <h3 className="font-serif font-bold text-slate-900 text-base">
+                        Reservas Financeiras
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsModalNovaReservaOpen(true)}
+                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-1 active:scale-95 transition"
+                    >
+                      <span>+</span>
+                      <span>Nova Reserva</span>
+                    </button>
+                  </div>
+
+                  {/* Lista de Caixinhas Cadastradas com Saldo e Botões de Depósito/Retirada */}
+                  <div className="space-y-2.5">
+                    {listaReservas.map(res => {
+                      const saldoReserva = saldosPorReserva[res.id] || 0;
+                      return (
+                        <div key={res.id} className="p-3 bg-slate-50/70 rounded-2xl border border-slate-200/80 flex justify-between items-center">
+                          <div className="min-w-0 pr-2">
+                            <div className="flex items-center gap-1.5 font-bold text-slate-800 text-xs">
+                              <span className="text-base">{res.icone}</span>
+                              <span className="truncate">{res.nome}</span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+                              Guardado: <strong className="text-slate-900 text-xs">¥ {saldoReserva.toLocaleString('ja-JP')}</strong>
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleAcaoReserva(res, false)}
+                              className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-[11px] flex items-center gap-1 active:scale-95 shadow-2xs transition"
+                              title="Depositar / Aportar na Reserva"
+                            >
+                              <span>+</span>
+                              <span>Depositar</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleAcaoReserva(res, true)}
+                              className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-[11px] flex items-center gap-1 active:scale-95 shadow-2xs transition"
+                              title="Retirar da Reserva (Para repor no pagamento)"
+                            >
+                              <span>-</span>
+                              <span>Retirar</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
 
                 {/* CALENDÁRIO DINÂMICO DE ESCALA (Transição Automática de Mês + Navegação << >>) */}
                 {(() => {
@@ -1767,6 +1924,54 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
             </div>
           )}
 
+          
+          {/* MODAL DE CRIAÇÃO DE NOVA RESERVA */}
+          {isModalNovaReservaOpen && (
+            <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+              <div className="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl border border-slate-200 space-y-4">
+                <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                  <h3 className="font-serif font-bold text-slate-900 text-base">Nova Caixinha de Reserva</h3>
+                  <button onClick={() => setIsModalNovaReservaOpen(false)} className="text-slate-400 font-bold text-lg p-1">✕</button>
+                </div>
+
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  const form = e.target;
+                  handleAdicionarNovaReserva(form.nome.value, form.icone.value, form.saldo.value);
+                }} className="space-y-3 text-xs">
+                  <div>
+                    <label className="block font-bold text-slate-500 mb-1 uppercase text-[10px]">Nome da Reserva</label>
+                    <input name="nome" type="text" placeholder="Ex: Passagem Brasil, IPVA Carro" required className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none focus:border-[#0F2C59]" />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block font-bold text-slate-500 mb-1 uppercase text-[10px]">Ícone</label>
+                      <select name="icone" className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none font-medium">
+                        <option value="🚗">🚗 Carro / Shaken</option>
+                        <option value="🏠">🏠 Imóvel / Aluguel</option>
+                        <option value="🛡️">🛡️ Emergência</option>
+                        <option value="✈️">✈️ Viagem</option>
+                        <option value="🏥">🏥 Saúde</option>
+                        <option value="🎒">🎒 Filhos / Escola</option>
+                        <option value="💎">💎 Investimento</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-500 mb-1 uppercase text-[10px]">Saldo Inicial (¥)</label>
+                      <input name="saldo" type="number" placeholder="0" defaultValue="0" className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none focus:border-[#0F2C59]" />
+                    </div>
+                  </div>
+
+                  <button type="submit" className="w-full py-3 bg-[#0F2C59] text-white font-bold rounded-xl text-xs shadow-md mt-2">
+                    Criar Caixinha de Reserva
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
           {/* Bottom Sheet Modal (Criar / Editar / Excluir) */}
           {isModalOpen && (
             <OneTapModal
@@ -1864,12 +2069,12 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
             {/* Conteúdo com Rolagem */}
             <form onSubmit={submit} className="flex-1 overflow-y-auto px-5 py-3.5 space-y-4">
               
-              {/* Segmentação Despesa / Receita */}
-              <div className="grid grid-cols-2 gap-1.5 bg-slate-100 p-1 rounded-2xl">
+              {/* Segmentação: Despesa / Receita / Reserva */}
+              <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-2xl text-xs font-bold">
                 <button
                   type="button"
                   onClick={() => { setTipo('Despesa'); setCategoria(CATEGORIAS_DESPESA[0].id); }}
-                  className={`py-2 rounded-xl text-xs font-bold transition ${
+                  className={`py-2 rounded-xl transition ${
                     tipo === 'Despesa' ? 'bg-white text-rose-600 shadow-xs' : 'text-slate-500'
                   }`}
                 >
@@ -1878,13 +2083,46 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                 <button
                   type="button"
                   onClick={() => { setTipo('Receita'); setCategoria(CATEGORIAS_RECEITA[0].id); }}
-                  className={`py-2 rounded-xl text-xs font-bold transition ${
+                  className={`py-2 rounded-xl transition ${
                     tipo === 'Receita' ? 'bg-white text-emerald-600 shadow-xs' : 'text-slate-500'
                   }`}
                 >
                   ↑ Receita
                 </button>
+                <button
+                  type="button"
+                  onClick={() => { setTipo('Aporte Reserva'); setCategoria('Reserva: Shaken (Inspeção Veicular)'); }}
+                  className={`py-2 rounded-xl transition ${
+                    tipo.includes('Reserva') ? 'bg-[#0F2C59] text-white shadow-xs' : 'text-slate-500'
+                  }`}
+                >
+                  🏦 Reserva
+                </button>
               </div>
+
+              {/* Sub-opções de Reserva (Depositar vs. Retirar) */}
+              {tipo.includes('Reserva') && (
+                <div className="grid grid-cols-2 gap-2 bg-amber-50 p-1.5 rounded-xl border border-amber-200 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setTipo('Aporte Reserva')}
+                    className={`py-1.5 rounded-lg transition ${
+                      tipo === 'Aporte Reserva' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600'
+                    }`}
+                  >
+                    + Depositar (Guardar)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTipo('Retirada Reserva')}
+                    className={`py-1.5 rounded-lg transition ${
+                      tipo === 'Retirada Reserva' ? 'bg-amber-600 text-white shadow-2xs' : 'text-slate-600'
+                    }`}
+                  >
+                    - Retirar (Usar)
+                  </button>
+                </div>
+              )}
 
               {/* Campo de Valor com Teclado Numérico */}
               <div>
@@ -1906,30 +2144,56 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                 </div>
               </div>
 
-              {/* Categorias em Grid 2 Colunas */}
+              {/* Categorias em Grid 2 Colunas ou Caixinhas de Reserva */}
               <div>
                 <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
-                  Categoria (Selecione em 1 toque)
+                  {tipo.includes('Reserva') ? 'Escolha qual Caixinha de Reserva:' : 'Categoria (Selecione em 1 toque):'}
                 </label>
                 <div className="grid grid-cols-2 gap-1.5 max-h-44 overflow-y-auto pr-1">
-                  {categorias.map((c) => {
-                    const isSelected = categoria === c.id;
-                    return (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => setCategoria(c.id)}
-                        className={`flex items-center gap-1.5 p-2 rounded-xl text-xs font-medium text-left transition active:scale-95 border ${
-                          isSelected
-                            ? 'bg-[#0F2C59] text-white border-[#0F2C59] font-bold shadow-xs'
-                            : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                        }`}
-                      >
-                        <span className="text-sm shrink-0">{c.icon}</span>
-                        <span className="truncate">{c.label}</span>
-                      </button>
-                    );
-                  })}
+                  {tipo.includes('Reserva') ? (
+                    // Exibe as Caixinhas de Reserva Cadastradas
+                    [
+                      { id: 'Reserva: Shaken (Inspeção Veicular)', label: 'Shaken (Carro)', icon: '🚗' },
+                      { id: 'Reserva: Renovação Contrato Aluguel', label: 'Renovação Aluguel', icon: '🏠' },
+                      { id: 'Reserva: Reserva de Emergência', label: 'Reserva Emergência', icon: '🛡️' },
+                    ].map((r) => {
+                      const isSelected = categoria === r.id;
+                      return (
+                        <button
+                          key={r.id}
+                          type="button"
+                          onClick={() => { setCategoria(r.id); setEstabelecimento(r.label); }}
+                          className={`flex items-center gap-1.5 p-2 rounded-xl text-xs font-medium text-left transition active:scale-95 border ${
+                            isSelected
+                              ? 'bg-[#0F2C59] text-white border-[#0F2C59] font-bold shadow-xs'
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className="text-sm shrink-0">{r.icon}</span>
+                          <span className="truncate">{r.label}</span>
+                        </button>
+                      );
+                    })
+                  ) : (
+                    categorias.map((c) => {
+                      const isSelected = categoria === c.id;
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => setCategoria(c.id)}
+                          className={`flex items-center gap-1.5 p-2 rounded-xl text-xs font-medium text-left transition active:scale-95 border ${
+                            isSelected
+                              ? 'bg-[#0F2C59] text-white border-[#0F2C59] font-bold shadow-xs'
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className="text-sm shrink-0">{c.icon}</span>
+                          <span className="truncate">{c.label}</span>
+                        </button>
+                      );
+                    })
+                  )}
                 </div>
               </div>
 
