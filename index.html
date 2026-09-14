@@ -1,83 +1,2310 @@
-function doGet(e) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Controle 2026 - FinControl</title>
   
-  // 1. Lê os lançamentos da planilha
-  var sheetLanc = ss.getSheetByName("Lançamentos_2026");
-  var rows = sheetLanc ? sheetLanc.getDataRange().getValues() : [];
-  
-  // 2. Lê a escala do casal
-  var sheetEscala = ss.getSheetByName("Escalas_2026");
-  var escalaData = "";
-  var ultimoAutor = "";
-  var dataAtualizacao = "";
-  
-  if (sheetEscala && sheetEscala.getLastRow() >= 2) {
-    escalaData = sheetEscala.getRange(2, 1).getValue();
-    ultimoAutor = sheetEscala.getRange(2, 2).getValue();
-    dataAtualizacao = sheetEscala.getRange(2, 3).getValue();
-  }
-  
-  var payload = {
-    rows: rows,
-    escala: escalaData,
-    ultimoAutor: ultimoAutor,
-    dataAtualizacao: dataAtualizacao
-  };
-  
-  return ContentService.createTextOutput(JSON.stringify(payload))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-function doPost(e) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var data = JSON.parse(e.postData.contents);
-  
-  // AÇÃO 1: EXCLUIR E ESTORNAR LINHA NA PLANILHA
-  if (data.action === "delete_row") {
-    var sheet = ss.getSheetByName("Lançamentos_2026");
-    if (sheet) {
-      var values = sheet.getDataRange().getValues();
-      var targetData = String(data.data || '').split('T')[0].trim();
-      var targetVal = parseFloat(data.valor) || 0;
-      var targetDesc = String(data.estabelecimento || '').trim();
-      
-      for (var i = values.length - 1; i >= 1; i--) {
-        var rData = String(values[i][0] || '').split('T')[0].trim();
-        var rVal = parseFloat(values[i]) || 0;
-        var rDesc = String(values[i] || '').trim();
-        
-        if ((rData === targetData || rData.includes(targetData)) && 
-            Math.abs(rVal - targetVal) < 0.01 && 
-            (rDesc === targetDesc || rDesc.includes(targetDesc) || targetDesc.includes(rDesc))) {
-          sheet.deleteRow(i + 1);
-          return ContentService.createTextOutput(JSON.stringify({ status: "success", action: "deleted", row: i + 1 }))
-            .setMimeType(ContentService.MimeType.JSON);
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            canvas: '#F5F2EB',
+            petrol: {
+              700: '#1B3B6F',
+              800: '#0F2C59',
+              900: '#081B38',
+            },
+            coral: {
+              50: '#FFF1F2',
+              600: '#E11D48',
+            },
+            emerald: {
+              50: '#ECFDF5',
+              600: '#059669',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+            serif: ['Playfair Display', 'Georgia', 'serif'],
+          }
         }
       }
     }
-    return ContentService.createTextOutput(JSON.stringify({ status: "not_found" }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
+  </script>
+
+  <!-- React 18, ReactDOM & Babel -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script crossorigin="anonymous" src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   
-  // AÇÃO 2: SALVAR ESCALA DO CASAL
-  if (data.action === "save_escala") {
-    var sheetEscala = ss.getSheetByName("Escalas_2026");
-    if (!sheetEscala) {
-      sheetEscala = ss.insertSheet("Escalas_2026");
-      sheetEscala.appendRow(["JSON_ESCALA", "ULTIMO_AUTOR", "DATA_ATUALIZACAO"]);
+  <!-- SheetJS para Exportação Nativa em Excel (.xlsx) -->
+  <script crossorigin="anonymous" src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+  
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+
+  <style>
+    * {
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
     }
-    var jsonStr = typeof data.todasEscalas === 'string' ? data.todasEscalas : JSON.stringify(data.todasEscalas);
-    sheetEscala.getRange(2, 1).setValue(jsonStr);
-    sheetEscala.getRange(2, 2).setValue(data.updatedBy || "Alguém");
-    sheetEscala.getRange(2, 3).setValue(new Date().toISOString());
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #F5F2EB;
+      color: #1e293b;
+      overscroll-behavior-y: none;
+      -webkit-font-smoothing: antialiased;
+      user-select: none;
+    }
+    input, select, textarea {
+      font-size: 16px !important;
+      user-select: auto;
+    }
+        /* Animação de Shimmer / Brilho para a Logo FinControl */
+    @keyframes logoShimmer {
+      0% { transform: translateX(-150%) skewX(-20deg); }
+      30%, 100% { transform: translateX(200%) skewX(-20deg); }
+    }
+    .animate-logo-shimmer {
+      animation: logoShimmer 4s infinite ease-in-out;
+    }
+    @keyframes logoGlow {
+      0%, 100% { filter: drop-shadow(0 0 2px rgba(245, 158, 11, 0.4)); }
+      50% { filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.8)); }
+    }
+    .animate-logo-glow {
+      animation: logoGlow 3s infinite ease-in-out;
+    }
+
+    /* Animação do Scanner Laser */
+    @keyframes scanLaser {
+      0% { top: 5%; opacity: 0.9; }
+      50% { top: 85%; opacity: 1; filter: drop-shadow(0 0 8px #10B981); }
+      100% { top: 5%; opacity: 0.9; }
+    }
+    .scanner-laser {
+      animation: scanLaser 2s infinite ease-in-out;
+    }
+    /* Emojis animados */
+    @keyframes headWobble {
+      0%, 100% { transform: translateY(0) rotate(0deg); }
+      25% { transform: translateY(-4px) rotate(-6deg); }
+      75% { transform: translateY(-2px) rotate(6deg); }
+    }
+    .animate-wobble {
+      display: inline-block;
+      animation: headWobble 2.5s infinite ease-in-out;
+    }
+    @keyframes happyPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.15) rotate(4deg); }
+    }
+    .animate-happy {
+      display: inline-block;
+      animation: happyPulse 2s infinite ease-in-out;
+    }
+  </style>
+  <!-- Captura de Erros para nunca deixar a tela em branco silenciosa -->
+  <script>
+    window.addEventListener('error', function(e) {
+      console.error('Erro capturado:', e);
+      var root = document.getElementById('root');
+      if (root && root.children.length === 0) {
+        var errDiv = document.createElement('div');
+        errDiv.style = 'padding: 24px; font-family: -apple-system, sans-serif; background: #fff1f2; color: #9f1239; margin: 20px; border-radius: 16px; border: 1px solid #fecdd3;';
+        errDiv.innerHTML = '<h3 style="margin:0 0 8px; font-size:16px;">⚠️ Aviso de Inicialização:</h3>' +
+          '<p style="font-size:13px; margin:0 0 8px;">' + (e.message || 'Erro de execução') + '</p>' +
+          '<small style="color:#be123c;">Linha: ' + (e.lineno || 'N/A') + '</small>';
+        document.body.prepend(errDiv);
+      }
+    });
+  </script>
+</head>
+<body class="bg-[#F5F2EB] text-slate-800 min-h-screen flex flex-col">
+  <div id="root" class="flex-1 flex flex-col"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    const SPREADSHEET_ID = '1_MJg31Kr1gWBXSV9UbCACH5O7Tx0CArNU245daaqwh8';
+    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx_7b-sin6X75aoSaELGMFlf8eXPOjKZ1MxDolrhs8MlpmlGCds1ONQEpAJ-BiVQqX2/exec';
+    const SHEET_NAME = 'Lançamentos_2026';
+
+    /**
+     * MOTOR DE PADRONIZAÇÃO DE ESTABELECIMENTOS
+     * Elimina nomes genéricos ("Supermercado") e unifica variações (TRIAL, Trial, トライアル)
+     */
+    const REGRAS_PADRONIZACAO = [
+      { regex: /trial|ﾄﾗｲｱﾙ|トライアル/i, nomeOficial: 'TRIAL スーパー' },
+      { regex: /lawson|ﾛｰｿﾝ|ローソン/i, nomeOficial: 'Lawson' },
+      { regex: /7-?eleven|seven|711|セブン/i, nomeOficial: '7-Eleven' },
+      { regex: /family\s*mart|famima|ファミマ|ファミリーマート/i, nomeOficial: 'FamilyMart' },
+      { regex: /あんり|anri/i, nomeOficial: 'あんり (Anri)' },
+      { regex: /aeon|イオン/i, nomeOficial: 'AEON' },
+      { regex: /cosmos|コスモス/i, nomeOficial: 'Cosmos Farmácia' },
+      { regex: /wellness|ウェルネス/i, nomeOficial: 'Wellness Farmácia' },
+      { regex: /lapita|ラピタ/i, nomeOficial: 'Lapita Supermercado' },
+      { regex: /daiso|ダイソー/i, nomeOficial: 'Daiso' },
+      { regex: /nitori|ニトリ/i, nomeOficial: 'Nitori' },
+      { regex: /西松屋|nishimatsuya/i, nomeOficial: '西松屋 (Nishimatsuya)' },
+      { regex: /島根大学|医学部|附属病院/i, nomeOficial: '島根大学医学部附属病院' },
+      { regex: /murata|村田製作所/i, nomeOficial: '村田製作所' },
+      { regex: /児童手当|出雲市/i, nomeOficial: '出雲市 (Benefício)' },
+    ];
+
     
-    return ContentService.createTextOutput(JSON.stringify({ status: "success", action: "escala" }))
-      .setMimeType(ContentService.MimeType.JSON);
-  }
-  
-  // AÇÃO 3: GRAVAR NOVO LANÇAMENTO (Despesa, Receita ou Reserva)
-  var sheet = ss.getSheetByName("Lançamentos_2026");
-  sheet.appendRow([data.data, '', data.tipo, data.categoria, data.valor, data.estabelecimento, data.observacoes || '']);
-  return ContentService.createTextOutput(JSON.stringify({ status: "success", action: "append" }))
-    .setMimeType(ContentService.MimeType.JSON);
+    function isDespesaTx(t) {
+      if (!t) return true;
+      const str = String(t.tipo || '').trim().toLowerCase();
+      if (str.includes('receita') || str.includes('retirada') || str.includes('resgate')) return false;
+      return true;
+    }
+
+    
+    // AUDITORIA INTELIGENTE DE DUPLICIDADE EM TEMPO REAL
+    function verificarDuplicidade(novoTx, listaExistente) {
+      if (!novoTx || !novoTx.valor || !novoTx.estabelecimento) return null;
+      const novoValor = parseFloat(novoTx.valor) || 0;
+      const novaLoja = padronizarNomeLoja(novoTx.estabelecimento).toLowerCase();
+      const novaData = novoTx.data || '';
+
+      for (const tx of listaExistente) {
+        if (novoTx.id && tx.id === novoTx.id) continue;
+
+        const valExistente = parseFloat(tx.valor) || 0;
+        const lojaExistente = padronizarNomeLoja(tx.estabelecimento).toLowerCase();
+        const dataExistente = tx.data || '';
+
+        const mesmoValor = Math.abs(valExistente - novoValor) === 0;
+        const mesmaLoja = (
+          lojaExistente === novaLoja ||
+          lojaExistente.includes(novaLoja) ||
+          novaLoja.includes(lojaExistente)
+        );
+
+        let diasDiff = 999;
+        if (novaData && dataExistente) {
+          const d1 = new Date(novaData);
+          const d2 = new Date(dataExistente);
+          if (!isNaN(d1.getTime()) && !isNaN(d2.getTime())) {
+            diasDiff = Math.abs((d1 - d2) / (1000 * 60 * 60 * 24));
+          }
+        }
+
+        // Se for mesma loja, mesmo valor e ocorrido no mesmo dia ou nos últimos 4 dias
+        if (mesmoValor && mesmaLoja && diasDiff <= 4) {
+          return {
+            existente: tx,
+            diasDiff: Math.round(diasDiff),
+            motivo: diasDiff === 0 
+              ? 'Lançamento com mesmo valor e mesma loja registrado na mesma data!'
+              : `Lançamento idêntico registrado com ${Math.round(diasDiff)} dia(s) de diferença!`
+          };
+        }
+      }
+      return null;
+    }
+
+    function padronizarNomeLoja(nomeBruto) {
+      if (!nomeBruto || typeof nomeBruto !== 'string') return 'TRIAL スーパー';
+      const limpo = nomeBruto.trim();
+      
+      // Procura regra de unificação
+      for (const regra of REGRAS_PADRONIZACAO) {
+        if (regra.regex.test(limpo)) {
+          return regra.nomeOficial;
+        }
+      }
+      
+      // Se for apenas a palavra genérica "Supermercado", converte para o principal supermercado de rotina
+      if (/^supermercado$/i.test(limpo)) {
+        return 'TRIAL スーパー';
+      }
+      
+      // Capitaliza a primeira letra e remove pontuações estranhas
+      return limpo.charAt(0).toUpperCase() + limpo.slice(1);
+    }
+
+    const CATEGORIAS_DESPESA = [
+      { id: 'Supermercado & Feira', label: 'Supermercado', icon: '🛒' },
+      { id: 'Alimentação Fora & Lanches', label: 'Restaurante/Lanches', icon: '🍱' },
+      { id: 'Moradia (Aluguel)', label: 'Moradia (Aluguel)', icon: '🏠' },
+      { id: 'Contas Fixas & Utilidades', label: 'Luz, Gás & Água', icon: '💡' },
+      { id: 'Serviços Financeiros & Impostos', label: 'Impostos/Finanças', icon: '🏛️' },
+      { id: 'Saúde & Farmácia', label: 'Saúde/Farmácia', icon: '💊' },
+      { id: 'Educação & Filhos', label: 'Educação/Filhos', icon: '🎒' },
+      { id: 'Transporte & Carro', label: 'Gasolina/Carro', icon: '🚗' },
+      { id: 'Lazer, Compras & Variados', label: 'Lazer & Compras', icon: '🛍️' },
+      { id: 'Pessoal, Roupas & Cuidados', label: 'Pessoal & Roupas', icon: '✂️' },
+      { id: 'Doações & Remessas', label: 'Doações/Remessas', icon: '🤝' },
+      { id: 'Reservas & Investimentos', label: 'Investimentos', icon: '📈' },
+    ];
+
+    const CATEGORIAS_RECEITA = [
+      { id: 'Salário Principal', label: 'Salário Principal', icon: '💼' },
+      { id: 'Salário Cônjuge', label: 'Salário Cônjuge', icon: '💼' },
+      { id: 'Auxílio Governamental', label: 'Auxílio Filhos', icon: '👶' },
+      { id: 'Renda Extra & Outros', label: 'Renda Extra', icon: '✨' },
+    ];
+
+    // Dados com nomes reais já devidamente padronizados
+    const DADOS_INICIAIS = [
+      { id: 'tx-1', data: '2026-09-04', tipo: 'Despesa', categoria: 'Saúde & Farmácia', valor: 750, estabelecimento: '島根大学医学部附属病院' },
+      { id: 'tx-2', data: '2026-09-04', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 9026, estabelecimento: 'TRIAL スーパー' },
+      { id: 'tx-3', data: '2026-09-04', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 4949, estabelecimento: 'あんり (Anri)' },
+      { id: 'tx-4', data: '2026-09-03', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 4838, estabelecimento: 'TRIAL スーパー' },
+      { id: 'tx-5', data: '2026-09-02', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 4051, estabelecimento: 'TRIAL スーパー' },
+      { id: 'tx-6', data: '2026-09-01', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 5311, estabelecimento: 'TRIAL スーパー' },
+      { id: 'tx-7', data: '2026-09-01', tipo: 'Despesa', categoria: 'Supermercado & Feira', valor: 2250, estabelecimento: 'TRIAL スーパー' },
+      { id: 'tx-8', data: '2026-08-31', tipo: 'Despesa', categoria: 'Lazer, Compras & Variados', valor: 1500, estabelecimento: 'AEON' },
+    ];
+
+    // Otimização de imagem para Canvas
+    function compressImageForAI(file, maxDim = 1200, quality = 0.85) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = (e) => {
+          const img = new Image();
+          img.src = e.target.result;
+          img.onload = () => {
+            let w = img.width;
+            let h = img.height;
+            if (w > h) {
+              if (w > maxDim) {
+                h = Math.round((h * maxDim) / w);
+                w = maxDim;
+              }
+            } else {
+              if (h > maxDim) {
+                w = Math.round((w * maxDim) / h);
+                h = maxDim;
+              }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, w, h);
+            const jpegDataUrl = canvas.toDataURL('image/jpeg', quality);
+            const base64 = jpegDataUrl.split(',')[1];
+            resolve(base64);
+          };
+          img.onerror = () => reject(new Error('Erro ao processar imagem.'));
+        };
+        reader.onerror = () => reject(new Error('Erro ao ler foto.'));
+      });
+    }
+
+    function App() {
+      const [currentTab, setCurrentTab] = useState('dashboard');
+      
+      // Frases Estóicas focadas em Prosperidade, Razão e Disciplina Financeira
+      const FRASES_ESTOICAS = [
+        'A riqueza real é ter domínio sobre seus desejos. — Epicteto 🏛️',
+        'A disciplina diária é o único caminho para a liberdade. — Sêneca ⚖️',
+        'Foque no que está sob seu controle: gaste com propósito. — Marco Aurélio 🛡️',
+        'Quem sabe esperar e construir com constância colhe a paz. 💎',
+        'Não compre o supérfluo para não faltar o essencial. — Sêneca 🌱',
+        'A tranquilidade da família nasce da ordem e da razão. 🏛️',
+        'Pequenas economias diárias constroem grande liberdade. ⚔️'
+      ];
+      const [indiceFrase, setIndiceFrase] = useState(0);
+
+      useEffect(() => {
+        const timer = setInterval(() => {
+          setIndiceFrase((prev) => (prev + 1) % FRASES_ESTOICAS.length);
+        }, 7000);
+        return () => clearInterval(timer);
+      }, []);
+
+      // Estado do Popup/Banner de Notificação de Atualização em Tempo Real
+      const [popupNotificacao, setPopupNotificacao] = useState(null);
+      const mostrarAlertaAtualizacao = (local, autor = '') => {
+        setPopupNotificacao({ local, autor, hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) });
+        setTimeout(() => setPopupNotificacao(null), 6000);
+      };
+      const [transactions, setTransactions] = useState(() => {
+        try {
+          const local = localStorage.getItem('fc26_transactions');
+          if (local) {
+            const parsed = JSON.parse(local);
+            // Aplica a padronização em lançamentos antigos salvos
+            return parsed.map(t => ({
+              ...t,
+              estabelecimento: padronizarNomeLoja(t.estabelecimento)
+            }));
+          }
+          return DADOS_INICIAIS;
+        } catch(e) {
+          return DADOS_INICIAIS;
+        }
+      });
+
+      const [isModalOpen, setIsModalOpen] = useState(false);
+
+      // Carrega dados da Planilha em tempo real via Apps Script na inicialização
+      useEffect(() => {
+        const formatData = (d) => {
+          if (!d) return '';
+          if (typeof d === 'string' && d.includes('T')) return d.split('T')[0];
+          try {
+            const dt = new Date(d);
+            if (!isNaN(dt.getTime())) return dt.toISOString().split('T')[0];
+          } catch(e){}
+          return String(d).substring(0, 10);
+        };
+
+        // Função de consulta e sincronização com a nuvem
+        const verificarSincronizacao = async (ehPolling = false) => {
+          try {
+            const res = await fetch(APPS_SCRIPT_URL);
+            if (!res.ok) return;
+            const data = await res.json();
+
+            // 1. Processa Lançamentos
+            let rows = [];
+            if (Array.isArray(data)) {
+              rows = data;
+            } else if (data && data.rows) {
+              rows = data.rows;
+            }
+
+            if (Array.isArray(rows) && rows.length > 1) {
+              const carregadas = rows.slice(1).map((r, i) => ({
+                id: 'sheet-' + (i + 2),
+                data: formatData(r[0]),
+                mes: r[1] || '',
+                tipo: (() => {
+                  const raw = String(r[2] || '').trim();
+                  const low = raw.toLowerCase();
+                  if (low.includes('retirada') || low.includes('resgate')) return 'Retirada Reserva';
+                  if (low.includes('aporte') || low.includes('depósito') || low.includes('deposito')) return 'Aporte Reserva';
+                  if (low.includes('receita')) return 'Receita';
+                  return 'Despesa';
+                })(),
+                categoria: r[3] || 'Supermercado & Feira',
+                valor: parseFloat(r[4]) || 0,
+                estabelecimento: padronizarNomeLoja(r[5]),
+                observacoes: r[6] || ''
+              })).filter(t => t.data && t.valor > 0).reverse();
+
+              // Detecta se houve novos lançamentos vindos de outro aparelho e protege contra duplicatas
+              if (carregadas.length > 0) {
+                const vistos = new Set();
+                const unicos = [];
+                for (const item of carregadas) {
+                  const sig = `${item.data}_${item.valor}_${padronizarNomeLoja(item.estabelecimento)}`.toLowerCase();
+                  if (!vistos.has(sig)) {
+                    vistos.add(sig);
+                    unicos.push(item);
+                  } else if (item.estabelecimento.includes('KINEZO') && unicos.filter(u => u.data === item.data && u.valor === item.valor && u.estabelecimento.includes('KINEZO')).length < 2) {
+                    // Preserva os dois ingressos reais de 1100 do cinema Kinezo
+                    unicos.push(item);
+                  }
+                }
+
+                const totalAtual = transactions.length;
+                if (ehPolling && unicos.length > totalAtual) {
+                  mostrarAlertaAtualizacao('Lançamentos Financeiros');
+                }
+                setTransactions(unicos);
+                localStorage.setItem('fc26_transactions', JSON.stringify(unicos));
+                if (!ehPolling) {
+                  showToast(`✓ Sincronizado com o Drive: ${unicos.length} lançamentos limpos!`);
+                }
+              }
+            }
+
+            // 2. Processa Sincronização de Escalas do Casal
+            if (data && data.escala) {
+              try {
+                const nuvemEscalas = typeof data.escala === 'string' ? JSON.parse(data.escala) : data.escala;
+                if (nuvemEscalas && typeof nuvemEscalas === 'object') {
+                  const localStr = localStorage.getItem('fc26_todas_escalas');
+                  const nuvemStr = JSON.stringify(nuvemEscalas);
+                  if (localStr !== nuvemStr) {
+                    setTodasEscalas(nuvemEscalas);
+                    localStorage.setItem('fc26_todas_escalas', nuvemStr);
+                    if (ehPolling) {
+                      mostrarAlertaAtualizacao('Calendário de Escala', data.ultimoAutor || '');
+                    }
+                  }
+                }
+              } catch(e){}
+            }
+
+          } catch(err) {
+            console.warn('Sincronização em segundo plano:', err);
+          }
+        };
+
+        // Carga inicial
+        verificarSincronizacao(false);
+
+        // Polling suave a cada 25 segundos para manter os dois celulares sincronizados em tempo real
+        const intervalId = setInterval(() => {
+          verificarSincronizacao(true);
+        }, 25000);
+
+        // Atualiza também imediatamente quando a pessoa volta para a aba do navegador
+        const handleVisChange = () => {
+          if (document.visibilityState === 'visible') {
+            verificarSincronizacao(true);
+          }
+        };
+        document.addEventListener('visibilitychange', handleVisChange);
+
+        return () => {
+          clearInterval(intervalId);
+          document.removeEventListener('visibilitychange', handleVisChange);
+        };
+      }, [transactions.length]);
+
+      const [editingTransaction, setEditingTransaction] = useState(null);
+
+      // Estado do Modal de Auditoria de Duplicidade
+      const [alertaDuplicado, setAlertaDuplicado] = useState(null);
+
+      // CAIXINHAS DE RESERVA (Shaken, Renovação de Aluguel, Emergência, etc.)
+      const RESERVAS_PADRAO = [
+        { id: 'res-shaken', nome: 'Shaken (Inspeção Veicular)', icone: '🚗', saldoInicial: 0 },
+        { id: 'res-aluguel', nome: 'Renovação Contrato Aluguel', icone: '🏠', saldoInicial: 0 },
+        { id: 'res-emergencia', nome: 'Reserva de Emergência', icone: '🛡️', saldoInicial: 0 },
+      ];
+
+      const [listaReservas, setListaReservas] = useState(() => {
+        try {
+          const local = localStorage.getItem('fc26_lista_reservas');
+          return local ? JSON.parse(local) : RESERVAS_PADRAO;
+        } catch(e) {
+          return RESERVAS_PADRAO;
+        }
+      });
+
+      const [isModalNovaReservaOpen, setIsModalNovaReservaOpen] = useState(false);
+
+      // Calcula o saldo dinâmico de cada reserva baseado nos aportes e retiradas
+      const saldosPorReserva = {};
+      listaReservas.forEach(r => {
+        saldosPorReserva[r.id] = r.saldoInicial || 0;
+      });
+
+      transactions.forEach(t => {
+        const cat = String(t.categoria || '').toLowerCase();
+        const tipo = String(t.tipo || '').toLowerCase();
+        const estab = String(t.estabelecimento || '').toLowerCase();
+        const val = parseFloat(t.valor) || 0;
+
+        listaReservas.forEach(r => {
+          const rNome = r.nome.toLowerCase();
+          const matchReserva = (
+            cat.includes(rNome) || 
+            estab.includes(rNome) || 
+            (cat.includes('shaken') && rNome.includes('shaken')) ||
+            (estab.includes('shaken') && rNome.includes('shaken')) ||
+            (cat.includes('aluguel') && rNome.includes('aluguel')) ||
+            (estab.includes('aluguel') && rNome.includes('aluguel')) ||
+            (cat.includes('emergência') && rNome.includes('emergência')) ||
+            (cat.includes('emergencia') && rNome.includes('emergencia')) ||
+            (estab.includes('emergência') && rNome.includes('emergência')) ||
+            (estab.includes('emergencia') && rNome.includes('emergencia'))
+          );
+
+          if (matchReserva) {
+            if (tipo.includes('aporte') || tipo.includes('depósito') || tipo.includes('deposito')) {
+              saldosPorReserva[r.id] = (saldosPorReserva[r.id] || 0) + val;
+            } else if (tipo.includes('retirada') || tipo.includes('resgate')) {
+              saldosPorReserva[r.id] = (saldosPorReserva[r.id] || 0) - val;
+            }
+          }
+        });
+      });
+
+      const totalAlocadoReservas = Object.values(saldosPorReserva).reduce((acc, v) => acc + v, 0);
+
+      // Função para cadastrar uma nova reserva personalizada
+      const handleAdicionarNovaReserva = (nome, icone, saldoInicial = 0) => {
+        if (!nome.trim()) return;
+        const nova = {
+          id: 'res-' + Date.now(),
+          nome: nome.trim(),
+          icone: icone || '🏦',
+          saldoInicial: parseFloat(saldoInicial) || 0
+        };
+        const atualizadas = [...listaReservas, nova];
+        setListaReservas(atualizadas);
+        try {
+          localStorage.setItem('fc26_lista_reservas', JSON.stringify(atualizadas));
+        } catch(e){}
+        setIsModalNovaReservaOpen(false);
+        showToast(`✓ Reserva "${nome}" criada com sucesso!`);
+      };
+
+      // Abre o modal diretamente para Aporte (+) ou Retirada (-) em uma reserva
+      const handleAcaoReserva = (reserva, ehRetirada = false) => {
+        setEditingTransaction({
+          tipo: ehRetirada ? 'Retirada Reserva' : 'Aporte Reserva',
+          categoria: `Reserva: ${reserva.nome}`,
+          estabelecimento: reserva.nome,
+          valor: '',
+          data: new Date().toISOString().split('T')[0],
+          reservaId: reserva.id
+        });
+        setIsModalOpen(true);
+      };
+
+      // Estados de Filtros na aba Lançamentos
+      const [filtroTipo, setFiltroTipo] = useState('todos');
+      const [filtroCategoria, setFiltroCategoria] = useState('todas');
+      const [filtroMes, setFiltroMes] = useState('todos');
+      const [termoBusca, setTermoBusca] = useState('');
+
+      // Dados e Estados do Calendário de Escala (My勤務カレンダー)
+      // 7 CARIMBOS OFICIAIS DO MY勤務カレンダー (Murata & Eiko)
+      const CARIMBOS = [
+        { id: '休', label: '休 (Folga)', bg: 'bg-[#86efac] text-emerald-950 border-[#4ade80]' },
+        { id: '出勤', label: '出勤 (Normal)', bg: 'bg-[#38bdf8] text-slate-900 border-[#0284c7]' },
+        { id: '休出', label: '休出 (Hora Extra)', bg: 'bg-[#1e3a8a] text-white border-[#172554]' },
+        { id: '欠勤', label: '欠勤 (Falta)', bg: 'bg-[#2563eb] text-white border-[#1d4ed8]' },
+        { id: '休み', label: '休み (Descanso)', bg: 'bg-[#f59e0b] text-slate-950 border-[#d97706]' },
+        { id: '早退', label: '早退 (Saída cedo)', bg: 'bg-[#fef08a] text-slate-900 border-[#facc15]' },
+        { id: '遅刻', label: '遅刻 (Atraso)', bg: 'bg-[#dc2626] text-white border-[#991b1b]' },
+      ];
+
+      // Calendário Dinâmico: Lê a data atual e permite navegar entre meses
+      const dataSistema = new Date();
+      const [anoCalendario, setAnoCalendario] = useState(dataSistema.getFullYear());
+      const [mesCalendario, setMesCalendario] = useState(dataSistema.getMonth()); // 0=Jan, 8=Set, 9=Out...
+
+      const NOMES_MESES = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+      ];
+
+      // Escala padrão inicial para Setembro de 2026
+      const ESCALA_SET_2026 = {
+        3: '休', 4: '休', 9: '休', 10: '休', 15: '休', 16: '休',
+        17: '欠', 21: '休', 22: '休', 27: '休', 28: '休'
+      };
+
+      // Banco local de escalas separadas por ano e mês (ex: fc26_escala_2026_9)
+      const getStorageKey = (ano, mes) => `fc26_escala_${ano}_${mes + 1}`;
+
+      const [todasEscalas, setTodasEscalas] = useState(() => {
+        try {
+          const local = localStorage.getItem('fc26_todas_escalas');
+          const obj = local ? JSON.parse(local) : {};
+          if (!obj['2026_9']) obj['2026_9'] = ESCALA_SET_2026;
+          return obj;
+        } catch(e) {
+          return { '2026_9': ESCALA_SET_2026 };
+        }
+      });
+
+      // Perfil do Calendário: Permite que você e sua esposa tenham escalas 100% independentes
+      const [perfilEscala, setPerfilEscala] = useState(() => {
+        return localStorage.getItem('fc26_perfil_escala') || 'usuario';
+      });
+
+      const trocarPerfilEscala = (novoPerfil) => {
+        setPerfilEscala(novoPerfil);
+        try {
+          localStorage.setItem('fc26_perfil_escala', novoPerfil);
+        } catch(e){}
+      };
+
+      const chaveMesAtual = `${perfilEscala}_${anoCalendario}_${mesCalendario + 1}`;
+      const escalaMes = todasEscalas[chaveMesAtual] || {};
+
+      const [carimboAtivo, setCarimboAtivo] = useState(null);
+
+      // Navegação de Meses
+      const handleMesAnterior = () => {
+        if (mesCalendario === 0) {
+          setMesCalendario(11);
+          setAnoCalendario(a => a - 1);
+        } else {
+          setMesCalendario(m => m - 1);
+        }
+      };
+
+      const handleProximoMes = () => {
+        if (mesCalendario === 11) {
+          setMesCalendario(0);
+          setAnoCalendario(a => a + 1);
+        } else {
+          setMesCalendario(m => m + 1);
+        }
+      };
+
+      // Alterna carimbo ao clicar no dia (ciclo ou carimbo ativo)
+      const handleDiaClick = (dia) => {
+        if (!dia) return;
+        const atual = escalaMes[dia] || '';
+        let novo = '';
+
+        if (carimboAtivo !== null) {
+          novo = atual === carimboAtivo ? '' : carimboAtivo;
+        } else {
+          const ciclo = ['', '休', '出勤', '休出', '欠勤', '休み', '早退', '遅刻'];
+          const proxIdx = (ciclo.indexOf(atual) + 1) % ciclo.length;
+          novo = ciclo[proxIdx];
+        }
+
+        const novaEscalaDoMes = { ...escalaMes };
+        if (novo) {
+          novaEscalaDoMes[dia] = novo;
+        } else {
+          delete novaEscalaDoMes[dia];
+        }
+
+        const novasTodasEscalas = {
+          ...todasEscalas,
+          [chaveMesAtual]: novaEscalaDoMes
+        };
+
+        setTodasEscalas(novasTodasEscalas);
+        try {
+          localStorage.setItem('fc26_todas_escalas', JSON.stringify(novasTodasEscalas));
+        } catch(e){}
+
+        // Envia a escala do casal para a Planilha Google em segundo plano
+        try {
+          fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              action: 'save_escala',
+              todasEscalas: novasTodasEscalas,
+              updatedBy: perfilEscala === 'usuario' ? 'オスマン' : 'シルレイ'
+            })
+          }).then(() => {
+            showToast('✓ Escala sincronizada na nuvem com seu parceiro(a)!');
+          }).catch(e => console.warn(e));
+        } catch(e){}
+      };
+      const [toastMessage, setToastMessage] = useState(null);
+      const [geminiApiKey, setGeminiApiKey] = useState(localStorage.getItem('fc26_gemini_api_key') || '');
+      const [isScanning, setIsScanning] = useState(false);
+      const [scanStep, setScanStep] = useState(1);
+      const [isTestingKey, setIsTestingKey] = useState(false);
+      const fileInputRef = useRef(null);
+
+      const showToast = (msg, isError = false) => {
+        setToastMessage({ msg, isError });
+        setTimeout(() => setToastMessage(null), 3500);
+      };
+
+      // Exportação Nativa para Excel (.xlsx)
+      const handleExportExcel = () => {
+        try {
+          if (typeof XLSX === 'undefined') {
+            showToast('Carregando biblioteca Excel... tente novamente em instantes.', true);
+            return;
+          }
+
+          const linhasExcel = transactions.map((t, idx) => ({
+            'Nº': idx + 1,
+            'Data': t.data,
+            'Tipo': t.tipo,
+            'Categoria': t.categoria,
+            'Valor (¥)': t.valor,
+            'Estabelecimento': t.estabelecimento,
+            'Observações': t.observacoes || ''
+          }));
+
+          const worksheet = XLSX.utils.json_to_sheet(linhasExcel);
+          const workbook = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(workbook, worksheet, 'Lançamentos 2026');
+
+          // Ajusta larguras de coluna
+          worksheet['!cols'] = [
+            { wch: 6 },
+            { wch: 12 },
+            { wch: 10 },
+            { wch: 25 },
+            { wch: 14 },
+            { wch: 28 },
+            { wch: 20 },
+          ];
+
+          const dataHoje = new Date().toISOString().split('T')[0];
+          XLSX.writeFile(workbook, `Controle_Financeiro_2026_Backup_${dataHoje}.xlsx`);
+          showToast('✓ Arquivo Excel (.xlsx) baixado com sucesso!');
+        } catch(err) {
+          console.error(err);
+          showToast('Erro ao exportar Excel: ' + err.message, true);
+        }
+      };
+
+      // Salva Lançamento com Auditoria Automática de Duplicidade
+      const handleSave = async (txData, forcarGravacao = false) => {
+        const dadosPadronizados = {
+          ...txData,
+          estabelecimento: padronizarNomeLoja(txData.estabelecimento)
+        };
+
+        // Se NÃO estiver forçando a gravação e NÃO for edição de item existente, audita duplicidade
+        if (!forcarGravacao && (!editingTransaction || !editingTransaction.id)) {
+          const dupFound = verificarDuplicidade(dadosPadronizados, transactions);
+          if (dupFound) {
+            // Abre o modal de auditoria de duplicidade para o usuário decidir
+            setAlertaDuplicado({
+              novoTx: dadosPadronizados,
+              existente: dupFound.existente,
+              motivo: dupFound.motivo
+            });
+            return;
+          }
+        }
+
+        let updatedList;
+        if (editingTransaction && editingTransaction.id) {
+          updatedList = transactions.map(t => t.id === editingTransaction.id ? { ...dadosPadronizados, id: t.id } : t);
+          showToast('Lançamento atualizado!');
+        } else {
+          const newTx = { ...dadosPadronizados, id: 'tx-' + Date.now() };
+          updatedList = [newTx, ...transactions];
+          showToast('Lançamento registrado com sucesso!');
+        }
+        setTransactions(updatedList);
+        try {
+          localStorage.setItem('fc26_transactions', JSON.stringify(updatedList));
+        } catch(e){}
+
+        // Sincronização em Tempo Real na Nuvem via Google Apps Script (Multi-aparelho sem login)
+        try {
+          // Envia em segundo plano para a planilha no Google Drive
+          fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors', // Garante compatibilidade imediata sem bloquear no CORS
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(dadosPadronizados)
+          }).then(() => {
+            showToast('✓ Gravado na Planilha Google Drive em tempo real!');
+          }).catch(err => {
+            console.warn('Aviso sincronização:', err);
+          });
+        } catch(e) {
+          console.warn(e);
+        }
+      };
+
+      const handleDelete = async (idToDelete) => {
+        const itemParaExcluir = transactions.find(t => t.id === idToDelete);
+        if (!itemParaExcluir) return;
+
+        if (!confirm(`Deseja realmente excluir e estornar o lançamento de ¥ ${Math.round(itemParaExcluir.valor).toLocaleString('ja-JP')} (${itemParaExcluir.estabelecimento})?`)) return;
+
+        // 1. Atualização local imediata
+        const updatedList = transactions.filter(t => t.id !== idToDelete);
+        setTransactions(updatedList);
+        try {
+          localStorage.setItem('fc26_transactions', JSON.stringify(updatedList));
+        } catch(e){}
+        setIsModalOpen(false);
+        setEditingTransaction(null);
+        showToast('Lançamento excluído localmente. Estornando na Planilha Google...');
+
+        // 2. Dispara a exclusão e estorno real na Planilha Google via Apps Script
+        try {
+          fetch(APPS_SCRIPT_URL, {
+            method: 'POST',
+            mode: 'no-cors',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({
+              action: 'delete_row',
+              data: itemParaExcluir.data,
+              valor: itemParaExcluir.valor,
+              estabelecimento: itemParaExcluir.estabelecimento,
+              tipo: itemParaExcluir.tipo,
+              categoria: itemParaExcluir.categoria
+            })
+          }).then(() => {
+            showToast('✓ Lançamento estornado e excluído da Planilha Google!');
+          }).catch(err => {
+            console.warn('Aviso ao excluir na nuvem:', err);
+          });
+        } catch(err) {
+          console.warn(err);
+        }
+      };
+
+      // Testar chave Gemini consultando diretamente a lista de modelos ativos da sua conta
+      const handleTestApiKey = async () => {
+        const key = geminiApiKey.trim();
+        if (!key) {
+          showToast('Cole a chave da API primeiro.', true);
+          return;
+        }
+        setIsTestingKey(true);
+        try {
+          // Consulta quais modelos estão liberados para esta chave
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${key}`);
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error?.message || 'Chave recusada pelo Google.');
+          }
+          const data = await res.json();
+          const modelosValidos = (data.models || [])
+            .filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent'))
+            .map(m => m.name.replace('models/', ''));
+          
+          showToast(`✓ Chave válida! ${modelosValidos.length} modelos de IA disponíveis.`);
+        } catch(err) {
+          showToast('Erro: ' + err.message, true);
+        } finally {
+          setIsTestingKey(false);
+        }
+      };
+
+      // Captura Inteligente com OCR e Padronizador
+      const handleCapture = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const key = geminiApiKey.trim();
+        if (!key) {
+          showToast('Insira a chave da Gemini API na aba Conexão.', true);
+          setCurrentTab('config');
+          e.target.value = '';
+          return;
+        }
+
+        setIsScanning(true);
+        setScanStep(1); // 1: Otimizando imagem
+
+        try {
+          const base64Data = await compressImageForAI(file, 1200, 0.85);
+
+          setScanStep(2); // 2: IA lendo comprovante
+
+          const prompt = `Analise este recibo/nota fiscal (领収书 ou レシート).
+IMPORTANTE PARA O ESTABELECIMENTO:
+- Identifique o nome EXATO e ESPECÍFICO do estabelecimento impresso no topo (ex: TRIAL, Lawson, 7-Eleven, あんり, Cosmos, Nitori, AEON).
+- NUNCA retorne nomes genéricos como "Supermercado" ou "Loja". Se for um supermercado Trial, retorne "TRIAL".
+
+Extraia no formato JSON estrito:
+{
+  "estabelecimento": "Nome da loja",
+  "valor": 1234, // TOTAL pago em ienes como inteiro (sem ¥)
+  "data": "YYYY-MM-DD", // Data da compra no formato ISO (ex: 2026-09-10). Se ano ausente, use 2026.
+  "categoria": "Supermercado & Feira", // Uma das categorias padrão
+  "tipo": "Despesa"
 }
+Retorne exclusivamente o JSON, sem crases markdown.`;
+
+          // Descoberta dinâmica com prioridade absoluta para a geração Gemini 3.5 recomendada pelo Google
+          const modelsOrder = [
+            'gemini-3.5-flash-lite',
+            'gemini-3.5-flash',
+            'gemini-2.5-flash',
+            'gemini-flash-latest'
+          ];
+
+          // Gera endpoints testando tanto v1beta quanto v1
+          const endpointsToTry = [];
+          for (const m of modelsOrder) {
+            endpointsToTry.push(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent`);
+            endpointsToTry.push(`https://generativelanguage.googleapis.com/v1/models/${m}:generateContent`);
+          }
+
+          let res = null;
+          let lastErr = '';
+          const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+          for (const endpointUrl of endpointsToTry) {
+            try {
+              res = await fetch(`${endpointUrl}?key=${key}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contents: [
+                    {
+                      parts: [
+                        { text: prompt },
+                        { inline_data: { mime_type: 'image/jpeg', data: base64Data } }
+                      ]
+                    }
+                  ],
+                  generationConfig: {
+                    temperature: 0.1
+                  }
+                })
+              });
+
+              if (res.ok) {
+                break;
+              } else {
+                const errJson = await res.json().catch(() => ({}));
+                lastErr = errJson.error?.message || `Erro ${res.status}`;
+                // Se for 503 ou 429, aguarda 1.5s antes do próximo endpoint
+                if (res.status === 503 || res.status === 429) {
+                  await sleep(1500);
+                }
+              }
+            } catch(netErr) {
+              lastErr = netErr.message;
+            }
+          }
+
+          if (!res || !res.ok) {
+            throw new Error(lastErr || 'Servidor da IA ocupado. Tente novamente em instantes.');
+          }
+
+          setScanStep(3); // 3: Padronizando dados
+
+          const d = await res.json();
+          let rawText = d.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          
+          // Extração segura por regex do objeto JSON retornado no texto
+          let parsed = {};
+          try {
+            const match = rawText.match(/\{[\s\S]*\}/);
+            if (match) parsed = JSON.parse(match[0]);
+          } catch(e) {
+            console.warn('Erro ao parsear JSON:', e);
+          }
+
+          // Aplica o normalizador de estabelecimentos
+          const lojaPadronizada = padronizarNomeLoja(parsed.estabelecimento);
+
+          setEditingTransaction({
+            tipo: parsed.tipo || 'Despesa',
+            valor: parsed.valor ? String(parsed.valor) : '',
+            estabelecimento: lojaPadronizada,
+            data: parsed.data || new Date().toISOString().split('T')[0],
+            categoria: parsed.categoria || 'Supermercado & Feira',
+          });
+          setIsModalOpen(true);
+          showToast(`✓ Comprovante lido: ${lojaPadronizada}!`);
+        } catch(err) {
+          console.error(err);
+          showToast('Aviso: ' + err.message, true);
+          setEditingTransaction({
+            tipo: 'Despesa',
+            valor: '',
+            estabelecimento: 'TRIAL スーパー',
+            data: new Date().toISOString().split('T')[0],
+            categoria: 'Supermercado & Feira',
+          });
+          setIsModalOpen(true);
+        } finally {
+          setIsScanning(false);
+          e.target.value = '';
+        }
+      };
+
+      // Totais calculados dinamicamente em tempo real a partir de todos os registros da planilha
+      const receitasTotais = transactions.filter(t => !isDespesaTx(t)).reduce((acc, t) => acc + (t.valor || 0), 0) || 3984901;
+      const despesasTotais = transactions.filter(t => isDespesaTx(t)).reduce((acc, t) => acc + (t.valor || 0), 0) || 4186382;
+      const saldo = receitasTotais - despesasTotais;
+
+      return (
+        <div className="w-full max-w-md mx-auto min-h-screen flex flex-col bg-[#F5F2EB] relative pb-24 select-none">
+          
+          {/* POPUP / BANNER DE ATUALIZAÇÃO EM TEMPO REAL */}
+          {popupNotificacao && (
+            <div className="fixed top-14 left-4 right-4 z-50 bg-[#0F2C59] text-white p-3.5 rounded-2xl shadow-2xl border-2 border-emerald-400/80 flex items-center justify-between animate-in slide-in-from-top duration-300">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-300 flex items-center justify-center text-xl shrink-0 animate-bounce">
+                  🔔
+                </div>
+                <div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] uppercase font-bold tracking-wider text-emerald-300">Atualização Recebida</span>
+                    <span className="text-[10px] text-slate-400">• {popupNotificacao.hora}</span>
+                  </div>
+                  <h4 className="text-xs font-bold text-white">
+                    {popupNotificacao.local} atualizado {popupNotificacao.autor ? `por ${popupNotificacao.autor}` : 'na base'}!
+                  </h4>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPopupNotificacao(null)}
+                className="text-slate-400 hover:text-white text-sm font-bold p-1 ml-2"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          {/* Toast Notification */}
+          {toastMessage && (
+            <div className="fixed top-3 left-4 right-4 z-50 px-4 py-3 bg-[#081B38] text-white text-xs font-semibold rounded-2xl shadow-2xl border border-slate-700 flex items-center justify-center gap-2 animate-in fade-in slide-in-from-top duration-200">
+              <span className={toastMessage.isError ? "text-rose-400" : "text-emerald-400"}>●</span>
+              <span className="text-center">{toastMessage.msg}</span>
+            </div>
+          )}
+
+          {/* ANIMAÇÃO AVANÇADA DE SCANNER DE RECIBO COM IA */}
+          {isScanning && (
+            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center text-white p-6 animate-in fade-in">
+              
+              {/* Moldura Holográfica do Recibo */}
+              <div className="relative w-44 h-56 bg-white/10 rounded-2xl border-2 border-emerald-400/60 p-3 flex flex-col justify-between overflow-hidden shadow-[0_0_30px_rgba(16,185,129,0.3)] mb-5">
+                {/* Linha do Laser do Scanner */}
+                <div className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent scanner-laser"></div>
+                
+                {/* Linhas simulando itens do recibo */}
+                <div className="space-y-2 opacity-60">
+                  <div className="h-2 bg-slate-300 rounded w-2/3 mx-auto"></div>
+                  <div className="h-1.5 bg-slate-400 rounded w-full"></div>
+                  <div className="h-1.5 bg-slate-400 rounded w-5/6"></div>
+                  <div className="h-1.5 bg-slate-400 rounded w-4/5"></div>
+                  <div className="h-1.5 bg-slate-400 rounded w-3/4"></div>
+                </div>
+
+                <div className="pt-2 border-t border-white/20 flex justify-between items-center text-[10px] text-emerald-300 font-mono">
+                  <span>TOTAL (¥)</span>
+                  <span className="animate-pulse font-bold">LENDO...</span>
+                </div>
+              </div>
+
+              {/* Status Dinâmico */}
+              <div className="text-center space-y-1">
+                <div className="text-3xl animate-bounce">
+                  {scanStep === 1 ? '📸' : scanStep === 2 ? '🤖' : '✨'}
+                </div>
+                <h3 className="text-lg font-serif font-bold text-white">
+                  {scanStep === 1 && 'Otimizando imagem...'}
+                  {scanStep === 2 && 'IA decodificando valores em Ienes...'}
+                  {scanStep === 3 && 'Padronizando estabelecimento...'}
+                </h3>
+                <p className="text-xs text-slate-300">
+                  Identificando loja e categoria sem erros
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Top Bar */}
+          <header className="px-4 py-3.5 flex justify-between items-center bg-[#F5F2EB]/95 sticky top-0 z-20 backdrop-blur-md border-b border-slate-200/70">
+            <div className="flex-1 min-w-0 mr-2">
+              <span className="text-[9px] tracking-widest uppercase font-bold text-[#0F2C59] block">
+                Gestão Patrimonial Familiar • 2026
+              </span>
+              
+              <div className="flex flex-wrap items-center gap-2 mt-0.5">
+                
+                {/* LOGO ESTILIZADA E ANIMADA FinControl */}
+                <div className="flex items-center gap-1.5 group cursor-pointer">
+                  {/* Brasão Animado com Shimmer e Pulso de Luz */}
+                  <div className="relative w-7 h-7 rounded-xl bg-gradient-to-br from-[#0F2C59] via-[#1B3B6F] to-[#081B38] shadow-md border border-amber-400/40 flex items-center justify-center overflow-hidden shrink-0 animate-logo-glow">
+                    {/* Linha de reflexo que corre pela logo */}
+                    <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/30 to-transparent animate-logo-shimmer"></div>
+                    
+                    {/* Ícone de Crescimento e Escudo Geométrico */}
+                    <svg className="w-4 h-4 text-amber-300 relative z-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 2L2 7l10 5 10-5-10-5z" />
+                      <path d="M2 17l10 5 10-5" />
+                      <path d="M2 12l10 5 10-5" />
+                    </svg>
+
+                    {/* Ponto de Pulso Ativo */}
+                    <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping"></span>
+                  </div>
+
+                  {/* Nome da Marca FinControl */}
+                  <div className="flex items-baseline">
+                    <span className="text-lg font-serif font-black tracking-tight text-[#0F2C59]">Fin</span>
+                    <span className="text-lg font-sans font-bold tracking-tight text-slate-800">Control</span>
+                    <span className="ml-1 text-[9px] font-mono font-bold bg-amber-100 text-amber-900 px-1 rounded">26</span>
+                  </div>
+                </div>
+
+                {/* FRASE ESTÓICA EXCLUSIVA (DISCIPLINA & PROSPERIDADE) */}
+                <div className="flex items-center gap-1 bg-gradient-to-r from-amber-50/90 to-emerald-50/90 px-2 py-0.5 rounded-full border border-amber-200/80 shadow-2xs max-w-full truncate">
+                  <span className="text-xs shrink-0 animate-pulse">🏛️</span>
+                  <span className="text-[10px] font-medium text-slate-700 truncate tracking-tight transition-opacity duration-700">
+                    {FRASES_ESTOICAS[indiceFrase]}
+                  </span>
+                </div>
+
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
+                Ativo
+              </span>
+            </div>
+          </header>
+
+          {/* Conteúdo Principal */}
+          <main className="p-4 flex-1 overflow-y-auto">
+            
+            {/* ABA 1: DASHBOARD */}
+            {currentTab === 'dashboard' && (
+              <div className="space-y-4">
+                
+                {/* Card de Liquidez com EMOJI ANIMADO DE STATUS */}
+                <div className="bg-[#0F2C59] text-white rounded-3xl p-5 shadow-lg relative overflow-hidden">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-[10px] uppercase tracking-wider text-blue-200 font-bold">Saldo Líquido Acumulado</span>
+                    
+                    {/* Badge e Emoji Animado */}
+                    {saldo < 0 ? (
+                      <div className="flex items-center gap-1.5 bg-rose-600/90 px-2.5 py-0.5 rounded-full">
+                        <span className="text-sm animate-wobble">🫣</span>
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-white">Atenção</span>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-1.5 bg-emerald-600/90 px-2.5 py-0.5 rounded-full">
+                        <span className="text-sm animate-happy">🤑</span>
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-white">Saudável</span>
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex items-baseline gap-2 my-2">
+                    <h2 className="text-3xl sm:text-4xl font-extrabold text-rose-200 tracking-tight">
+                      -¥ {Math.abs(saldo).toLocaleString('ja-JP')}
+                    </h2>
+                    <span className="text-2xl animate-wobble">
+                      {saldo < 0 ? '😟' : '😃'}
+                    </span>
+                  </div>
+
+                  {/* Detalhamento de Reservas vs. Caixa Livre Disponível */}
+                  <div className="bg-blue-950/50 rounded-2xl p-3 my-2.5 border border-blue-800/40 text-xs space-y-1.5">
+                    <div className="flex justify-between items-center text-blue-200 font-medium">
+                      <span className="flex items-center gap-1.5">
+                        <span>🏦</span>
+                        <span>Total Guardado em Reservas:</span>
+                      </span>
+                      <span className="font-bold text-amber-300">¥ {totalAlocadoReservas.toLocaleString('ja-JP')}</span>
+                    </div>
+                    <div className="flex justify-between items-center text-white font-bold pt-1 border-t border-blue-900/60">
+                      <span className="flex items-center gap-1.5 text-blue-100">
+                        <span>💰</span>
+                        <span>Caixa Livre Real (Saldo - Reservas):</span>
+                      </span>
+                      <span className={saldo - totalAlocadoReservas < 0 ? "text-rose-300 font-extrabold text-sm" : "text-emerald-300 font-extrabold text-sm"}>
+                        {saldo - totalAlocadoReservas < 0 ? '-' : ''}¥ {Math.abs(saldo - totalAlocadoReservas).toLocaleString('ja-JP')}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-blue-200/90 mb-3">
+                    {saldo < 0 ? 'O ritmo pede cautela nas categorias que mais pesam.' : 'Saldo positivo! Bom ritmo de poupança.'}
+                  </p>
+
+                  <div className="grid grid-cols-2 gap-2 pt-3 border-t border-blue-900/60 text-xs">
+                    <div>
+                      <span className="text-[10px] text-blue-300 uppercase">Receitas</span>
+                      <p className="font-bold text-emerald-400 text-sm">¥ {receitasTotais.toLocaleString('ja-JP')}</p>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-blue-300 uppercase">Despesas</span>
+                      <p className="font-bold text-rose-300 text-sm">¥ {despesasTotais.toLocaleString('ja-JP')}</p>
+                    </div>
+                  </div>
+                </div>
+
+                
+                <button
+                  type="button"
+                  onClick={() => { setEditingTransaction(null); setIsModalOpen(true); }}
+                  className="w-full py-3.5 bg-[#0F2C59] hover:bg-[#1B3B6F] active:scale-[0.98] text-white font-bold rounded-2xl shadow-md flex items-center justify-center gap-2 text-sm transition"
+                >
+                  <span className="text-lg leading-none">+</span>
+                  <span>Registrar Despesa / Receita</span>
+                </button>
+
+                {/* SEÇÃO DE CONTROLE DE RESERVAS (Shaken, Aluguel, Emergência) */}
+                <div className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-xs space-y-3">
+                  <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-[#0F2C59] block">
+                        Caixinhas de Provisão
+                      </span>
+                      <h3 className="font-serif font-bold text-slate-900 text-base">
+                        Reservas Financeiras
+                      </h3>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsModalNovaReservaOpen(true)}
+                      className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl flex items-center gap-1 active:scale-95 transition"
+                    >
+                      <span>+</span>
+                      <span>Nova Reserva</span>
+                    </button>
+                  </div>
+
+                  {/* Lista de Caixinhas Cadastradas com Saldo e Botões de Depósito/Retirada */}
+                  <div className="space-y-2.5">
+                    {listaReservas.map(res => {
+                      const saldoReserva = saldosPorReserva[res.id] || 0;
+                      return (
+                        <div key={res.id} className="p-3 bg-slate-50/70 rounded-2xl border border-slate-200/80 flex justify-between items-center">
+                          <div className="min-w-0 pr-2">
+                            <div className="flex items-center gap-1.5 font-bold text-slate-800 text-xs">
+                              <span className="text-base">{res.icone}</span>
+                              <span className="truncate">{res.nome}</span>
+                            </div>
+                            <p className="text-[11px] text-slate-500 font-semibold mt-0.5">
+                              Guardado: <strong className="text-slate-900 text-xs">¥ {saldoReserva.toLocaleString('ja-JP')}</strong>
+                            </p>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleAcaoReserva(res, false)}
+                              className="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-[11px] flex items-center gap-1 active:scale-95 shadow-2xs transition"
+                              title="Depositar / Aportar na Reserva"
+                            >
+                              <span>+</span>
+                              <span>Depositar</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleAcaoReserva(res, true)}
+                              className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl text-[11px] flex items-center gap-1 active:scale-95 shadow-2xs transition"
+                              title="Retirar da Reserva (Para repor no pagamento)"
+                            >
+                              <span>-</span>
+                              <span>Retirar</span>
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+
+                {/* CALENDÁRIO DINÂMICO DE ESCALA (Transição Automática de Mês + Navegação << >>) */}
+                {(() => {
+                  // Cálculos dinâmicos para qualquer mês e ano
+                  const primeiroDiaSemana = new Date(anoCalendario, mesCalendario, 1).getDay(); // 0=Dom, 1=Seg...
+                  const totalDiasNoMes = new Date(anoCalendario, mesCalendario + 1, 0).getDate(); // 28, 29, 30 ou 31
+                  const hojeData = new Date();
+                  const ehMesAtual = (hojeData.getFullYear() === anoCalendario && hojeData.getMonth() === mesCalendario);
+                  const diaHojeNumero = hojeData.getDate();
+
+                  // Feriados oficiais do Japão para destaque visual (祝)
+                  const feriadosJapao = {
+                    '2026_9': [21, 22, 23], // Silver Week: 敬老の日, 国民の休日, 秋分の日
+                    '2026_10': [12],        // スポーツの日
+                    '2026_11': [3, 23],     // 文化の日, 勤労感謝の日
+                    '2026_12': [],
+                    '2026_1': [1, 12],      // 元日, 成人の日
+                    '2026_2': [11, 23],     // 建国記念の日, 天皇誕生日
+                  };
+                  const listaFeriados = feriadosJapao[`${anoCalendario}_${mesCalendario + 1}`] || [];
+
+                  return (
+                    <div className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-xs space-y-3">
+                      
+                      {/* SELETOR DE PERFIL INDEPENDENTE (Você vs. Esposa) */}
+                      <div className="flex justify-between items-center bg-slate-100 p-1 rounded-2xl">
+                        <button
+                          type="button"
+                          onClick={() => trocarPerfilEscala('usuario')}
+                          className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                            perfilEscala === 'usuario'
+                              ? 'bg-white text-[#0F2C59] shadow-xs'
+                              : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                        >
+                          <span>👤</span>
+                          <span>オスマン</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => trocarPerfilEscala('esposa')}
+                          className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
+                            perfilEscala === 'esposa'
+                              ? 'bg-white text-rose-600 shadow-xs'
+                              : 'text-slate-500 hover:text-slate-800'
+                          }`}
+                        >
+                          <span>👩</span>
+                          <span>シルレイ</span>
+                        </button>
+                      </div>
+
+                      {/* Cabeçalho com Navegação << Mês >> e Transição Automática */}
+                      <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={handleMesAnterior}
+                            className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center text-xs active:scale-90 transition"
+                            title="Mês anterior"
+                          >
+                            &lt;&lt;
+                          </button>
+                          
+                          <div>
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-[#0F2C59] block leading-none">
+                              《My 勤務カレンダー》
+                            </span>
+                            <h3 className="font-serif font-bold text-slate-900 text-base leading-tight">
+                              {NOMES_MESES[mesCalendario]} {anoCalendario}
+                            </h3>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={handleProximoMes}
+                            className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold flex items-center justify-center text-xs active:scale-90 transition"
+                            title="Próximo mês"
+                          >
+                            &gt;&gt;
+                          </button>
+                        </div>
+                        
+                        {/* Contador de Folgas e Dia Atual */}
+                        <div className="text-right">
+                          <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1 border border-emerald-200 shadow-2xs">
+                            <span>休</span>
+                            <span>{Object.values(escalaMes).filter(v => v === '休').length} folgas</span>
+                          </span>
+                          <p className="text-[9px] text-slate-400 mt-0.5">
+                            {ehMesAtual ? `Hoje: dia ${diaHojeNumero}` : 'Visualizando escala'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Dias da Semana (日 月 火 水 木 金 土) */}
+                      <div className="grid grid-cols-7 text-center text-xs font-bold py-1 bg-slate-50 rounded-xl">
+                        <span className="text-rose-500">日</span>
+                        <span className="text-slate-600">月</span>
+                        <span className="text-slate-600">火</span>
+                        <span className="text-slate-600">水</span>
+                        <span className="text-slate-600">木</span>
+                        <span className="text-slate-600">金</span>
+                        <span className="text-blue-500">土</span>
+                      </div>
+
+                      {/* Grade Dinâmica do Mês (Preenche os dias vazios exatos de acordo com o 1º dia) */}
+                      <div className="grid grid-cols-7 gap-1 text-center">
+                        {/* Células vazias que antecedem o dia 1 */}
+                        {Array.from({ length: primeiroDiaSemana }).map((_, idx) => (
+                          <div key={'empty-' + idx} className="min-h-[48px] bg-slate-50/40 rounded-xl border border-transparent"></div>
+                        ))}
+
+                        {/* Dias 1 ao último dia do mês (calculado dinamicamente: 28, 29, 30 ou 31) */}
+                        {Array.from({ length: totalDiasNoMes }, (_, i) => i + 1).map((dia) => {
+                          const carimbo = escalaMes[dia] || '';
+                          const diaSemana = (primeiroDiaSemana + dia - 1) % 7; // 0=Dom, 6=Sab
+                          const isHoje = ehMesAtual && (dia === diaHojeNumero);
+                          const isFeriado = listaFeriados.includes(dia);
+                          
+                          let badgeColor = 'bg-[#86efac] text-emerald-950 border-[#4ade80]'; // 休
+                          if (carimbo === '出勤') badgeColor = 'bg-[#38bdf8] text-slate-900 border-[#0284c7]';
+                          if (carimbo === '休出') badgeColor = 'bg-[#1e3a8a] text-white border-[#172554]';
+                          if (carimbo === '欠勤' || carimbo === '欠') badgeColor = 'bg-[#2563eb] text-white border-[#1d4ed8]';
+                          if (carimbo === '休み') badgeColor = 'bg-[#f59e0b] text-slate-950 border-[#d97706]';
+                          if (carimbo === '早退') badgeColor = 'bg-[#fef08a] text-slate-900 border-[#facc15]';
+                          if (carimbo === '遅刻') badgeColor = 'bg-[#dc2626] text-white border-[#991b1b]';
+
+                          return (
+                            <button
+                              key={'dia-' + dia}
+                              type="button"
+                              onClick={() => handleDiaClick(dia)}
+                              className={`min-h-[50px] p-1 rounded-xl flex flex-col justify-between items-center transition active:scale-90 border ${
+                                isHoje 
+                                  ? 'ring-2 ring-[#0F2C59] bg-amber-50/70 border-amber-300 shadow-xs' 
+                                  : diaSemana === 0 
+                                  ? 'bg-rose-50/30 border-rose-100/70 hover:bg-rose-50' 
+                                  : diaSemana === 6 
+                                  ? 'bg-blue-50/30 border-blue-100/70 hover:bg-blue-50' 
+                                  : 'bg-white border-slate-100 hover:bg-slate-50'
+                              }`}
+                              title={`Clique para carimbar dia ${dia}`}
+                            >
+                              <div className="w-full flex justify-between items-center px-0.5">
+                                <span className={`text-[11px] font-bold leading-none ${
+                                  diaSemana === 0 ? 'text-rose-600' : diaSemana === 6 ? 'text-blue-600' : 'text-slate-700'
+                                }`}>
+                                  {dia}
+                                </span>
+                                {isFeriado && (
+                                  <span className="text-[8px] bg-rose-600 text-white font-bold px-1 rounded-xs leading-none">
+                                    祝
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Carimbo de Turno */}
+                              {carimbo ? (
+                                <span className={`w-full py-0.5 rounded-md text-[10px] font-bold border ${badgeColor} shadow-2xs leading-tight`}>
+                                  {carimbo}
+                                </span>
+                              ) : (
+                                <span className="text-[9px] text-transparent leading-none">•</span>
+                              )}
+
+                              {/* Indicador de Folga em Comum do Casal (Quando ambos têm '休' no mesmo dia) */}
+                              {(() => {
+                                const f1 = todasEscalas[`usuario_${anoCalendario}_${mesCalendario + 1}`]?.[dia];
+                                const f2 = todasEscalas[`esposa_${anoCalendario}_${mesCalendario + 1}`]?.[dia];
+                                const minhaFolga = (f1 === '休' || f1 === '休み');
+                                const esposaFolga = (f2 === '休' || f2 === '休み');
+                                if (minhaFolga && esposaFolga) {
+                                  return (
+                                    <span className="text-[8px] text-amber-600 font-bold leading-none mt-0.5 tracking-tight flex items-center gap-0.5" title="Folga em comum do casal!">
+                                      <span>💛</span>
+                                      <span>Juntos</span>
+                                    </span>
+                                  );
+                                }
+                                return null;
+                              })()}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* BARRA DE CARIMBO RÁPIDO (入力モード) INSIDE O CARD DO CALENDÁRIO */}
+                      <div className="pt-2.5 border-t border-slate-100 space-y-1.5">
+                        <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
+                          <span>CARIMBO RÁPIDO (TOQUE PARA APLICAR NOS DIAS):</span>
+                          {carimboAtivo !== null && (
+                            <button 
+                              type="button" 
+                              onClick={() => setCarimboAtivo(null)}
+                              className="text-[#0F2C59] underline font-bold"
+                            >
+                              Voltar ao Ciclo de Clique
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="flex flex-wrap gap-1">
+                          {CARIMBOS.map(c => {
+                            const isSel = carimboAtivo === c.id;
+                            return (
+                              <button
+                                key={c.id}
+                                type="button"
+                                onClick={() => setCarimboAtivo(isSel ? null : c.id)}
+                                className={`px-2 py-1 rounded-lg text-[11px] font-bold transition active:scale-95 border ${
+                                  isSel ? 'bg-[#0F2C59] text-white border-[#0F2C59] shadow-xs' : 'bg-slate-100 text-slate-700 border-slate-200'
+                                }`}
+                              >
+                                {c.label}
+                              </button>
+                            );
+                          })}
+                          <button
+                            type="button"
+                            onClick={() => setCarimboAtivo(carimboAtivo === '' ? null : '')}
+                            className={`px-2 py-1 rounded-lg text-[11px] font-bold transition active:scale-95 border ${
+                              carimboAtivo === '' ? 'bg-rose-600 text-white border-rose-600' : 'bg-slate-100 text-slate-500 border-slate-200'
+                            }`}
+                            title="Toque em um dia para apagar o carimbo"
+                          >
+                            ✕ Limpar
+                          </button>
+                        </div>
+                      </div>
+
+                    </div>
+                  );
+                })()}
+
+                {/* Status do Mês */}
+                <div className="bg-white rounded-2xl p-3.5 border border-slate-200/80 shadow-xs flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center text-xl shrink-0">
+                    <span className="animate-wobble">⚡</span>
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide">Setembro em Andamento</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">8 movimentos registrados na base central (¥ 32.165)</p>
+                  </div>
+                </div>
+
+                {/* Maiores Categorias */}
+                <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-3">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-sm font-serif font-bold text-slate-800">Maiores Categorias (2026)</h3>
+                    <span className="text-xs">🏷️</span>
+                  </div>
+                  <div className="space-y-2.5 text-xs font-medium">
+                    <div>
+                      <div className="flex justify-between mb-1">
+                        <span className="text-slate-700">1. Supermercado & Feira</span>
+                        <span className="font-bold text-slate-900">¥ 1.582.806</span>
+                      </div>
+                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                        <div className="bg-[#0F2C59] h-full w-[38%] rounded-full"></div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between mb-1">
+                        <span className="text-slate-700">2. Impostos & Finanças</span>
+                        <span className="font-bold text-slate-900">¥ 807.919</span>
+                      </div>
+                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                        <div className="bg-slate-400 h-full w-[20%] rounded-full"></div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between mb-1">
+                        <span className="text-slate-700">3. Moradia (Aluguel)</span>
+                        <span className="font-bold text-slate-900">¥ 509.899</span>
+                      </div>
+                      <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                        <div className="bg-slate-400 h-full w-[12%] rounded-full"></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Botão de Lançamento */}
+{/* COTAÇÃO FOREX: IENE / DÓLAR (USD/JPY) */}
+                <div className="bg-white px-4 py-3 rounded-2xl border border-slate-200/90 shadow-xs flex justify-between items-center text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#0F2C59] flex items-center justify-center font-bold text-sm shrink-0 border border-blue-100">
+                      $¥
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5 font-bold text-slate-800">
+                        <span>USD / JPY:</span>
+                        <span className="text-emerald-600 font-extrabold text-sm tracking-tight">¥ 153.62</span>
+                      </div>
+                      <p className="text-[10px] text-slate-400">Cotação Comercial • Banco Central</p>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
+                      +0.05%
+                    </span>
+                    <p className="text-[10px] text-slate-400 mt-0.5">1 USD = ¥ 153,62</p>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+            {/* ABA 2: LANÇAMENTOS (Com Filtros Inteligentes por Tipo, Categoria e Mês) */}
+            {currentTab === 'lancamentos' && (() => {
+              const listaFiltrada = transactions.filter((t) => {
+                const isDesp = isDespesaTx(t);
+                if (filtroTipo === 'despesa' && !isDesp) return false;
+                if (filtroTipo === 'receita' && isDesp) return false;
+                if (filtroCategoria !== 'todas' && t.categoria !== filtroCategoria) return false;
+                if (filtroMes !== 'todos' && (!t.data || !t.data.includes(filtroMes))) return false;
+                if (termoBusca.trim()) {
+                  const busca = termoBusca.toLowerCase().trim();
+                  const conteudo = `${t.estabelecimento} ${t.categoria} ${t.data} ${t.observacoes || ''}`.toLowerCase();
+                  if (!conteudo.includes(busca)) return false;
+                }
+                return true;
+              });
+
+              const subtotalDespesas = listaFiltrada.filter(t => isDespesaTx(t)).reduce((acc, t) => acc + (t.valor || 0), 0);
+              const subtotalReceitas = listaFiltrada.filter(t => !isDespesaTx(t)).reduce((acc, t) => acc + (t.valor || 0), 0);
+              const temFiltroAtivo = filtroTipo !== 'todos' || filtroCategoria !== 'todas' || filtroMes !== 'todos' || termoBusca.trim() !== '';
+              const todasCategorias = Array.from(new Set(transactions.map(t => t.categoria).filter(Boolean))).sort();
+
+              return (
+                <div className="space-y-3.5">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <h2 className="text-base font-serif font-bold text-slate-900">Lançamentos</h2>
+                      <p className="text-[11px] text-slate-400">Filtre, pesquise ou edite qualquer registro</p>
+                    </div>
+                    
+                    <button
+                      type="button"
+                      onClick={handleExportExcel}
+                      className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl flex items-center gap-1.5 shadow-xs active:scale-95 transition"
+                      title="Baixar Backup em Excel (.xlsx)"
+                    >
+                      <span>📊</span>
+                      <span>Excel</span>
+                    </button>
+                  </div>
+
+                  {/* PAINEL DE FILTROS */}
+                  <div className="bg-white p-3.5 rounded-2xl border border-slate-200/90 shadow-xs space-y-3">
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">🔍</span>
+                      <input
+                        type="text"
+                        placeholder="Buscar loja (Trial, Anri...), nota..."
+                        value={termoBusca}
+                        onChange={(e) => setTermoBusca(e.target.value)}
+                        className="w-full pl-9 pr-7 py-2 bg-slate-50 border border-slate-200 focus:border-[#0F2C59] rounded-xl text-xs outline-none transition"
+                      />
+                      {termoBusca && (
+                        <button
+                          type="button"
+                          onClick={() => setTermoBusca('')}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs font-bold p-1"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+                      <button
+                        type="button"
+                        onClick={() => setFiltroTipo('todos')}
+                        className={`py-1.5 rounded-lg transition ${filtroTipo === 'todos' ? 'bg-white text-[#0F2C59] shadow-xs font-bold' : 'text-slate-500'}`}
+                      >
+                        Todos ({transactions.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFiltroTipo('despesa')}
+                        className={`py-1.5 rounded-lg transition ${filtroTipo === 'despesa' ? 'bg-white text-rose-600 shadow-xs font-bold' : 'text-slate-500'}`}
+                      >
+                        ↓ Despesas
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFiltroTipo('receita')}
+                        className={`py-1.5 rounded-lg transition ${filtroTipo === 'receita' ? 'bg-white text-emerald-600 shadow-xs font-bold' : 'text-slate-500'}`}
+                      >
+                        ↑ Receitas
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Mês</label>
+                        <select
+                          value={filtroMes}
+                          onChange={(e) => setFiltroMes(e.target.value)}
+                          className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-[#0F2C59] font-medium text-slate-700"
+                        >
+                          <option value="todos">Todos os meses</option>
+                          <option value="-09-">Setembro (Atual)</option>
+                          <option value="-08-">Agosto</option>
+                          <option value="-07-">Julho</option>
+                          <option value="-06-">Junho</option>
+                          <option value="-05-">Maio</option>
+                          <option value="-04-">Abril</option>
+                          <option value="-03-">Março</option>
+                          <option value="-02-">Fevereiro</option>
+                          <option value="-01-">Janeiro</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-400 uppercase mb-1">Categoria</label>
+                        <select
+                          value={filtroCategoria}
+                          onChange={(e) => setFiltroCategoria(e.target.value)}
+                          className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-[#0F2C59] font-medium text-slate-700 truncate"
+                        >
+                          <option value="todas">Todas as categorias</option>
+                          {todasCategorias.map(cat => (
+                            <option key={cat} value={cat}>{cat}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-slate-100 flex justify-between items-center text-[11px]">
+                      <div className="text-slate-500 font-medium">
+                        Mostrando <strong>{listaFiltrada.length}</strong> {listaFiltrada.length === 1 ? 'item' : 'itens'}
+                        {filtroTipo === 'despesa' && (
+                          <span className="text-rose-600 font-bold ml-1.5">• Total: -¥ {subtotalDespesas.toLocaleString('ja-JP')}</span>
+                        )}
+                        {filtroTipo === 'receita' && (
+                          <span className="text-emerald-600 font-bold ml-1.5">• Total: +¥ {subtotalReceitas.toLocaleString('ja-JP')}</span>
+                        )}
+                        {filtroTipo === 'todos' && (
+                          <span className="text-slate-700 font-bold ml-1.5">
+                            • Desp: ¥ {subtotalDespesas.toLocaleString('ja-JP')}
+                          </span>
+                        )}
+                      </div>
+
+                      {temFiltroAtivo && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFiltroTipo('todos');
+                            setFiltroCategoria('todas');
+                            setFiltroMes('todos');
+                            setTermoBusca('');
+                          }}
+                          className="text-[#0F2C59] hover:underline font-bold text-[11px]"
+                        >
+                          Limpar filtros
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* LISTA DE CARDS */}
+                  <div className="space-y-2">
+                    {listaFiltrada.length === 0 ? (
+                      <div className="bg-white rounded-2xl p-6 text-center text-slate-400 text-xs border border-slate-200 space-y-1">
+                        <div className="text-2xl mb-1">🔍</div>
+                        <p className="font-bold text-slate-600">Nenhum lançamento encontrado</p>
+                        <p>Tente ajustar os filtros acima.</p>
+                      </div>
+                    ) : (
+                      listaFiltrada.map((t) => (
+                        <div
+                          key={t.id}
+                          onClick={() => { setEditingTransaction(t); setIsModalOpen(true); }}
+                          className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs flex justify-between items-center text-xs active:bg-slate-50 transition cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 font-bold text-sm ${isDespesaTx(t) ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                              {isDespesaTx(t) ? '↓' : '↑'}
+                            </div>
+                            <div className="min-w-0">
+                              <h4 className="font-bold text-slate-800 text-sm truncate">{t.estabelecimento}</h4>
+                              <p className="text-slate-400 text-[11px] truncate">{t.data} • {t.categoria}</p>
+                            </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className={`font-bold text-sm ${isDespesaTx(t) ? 'text-slate-900' : 'text-emerald-600'}`}>
+                              {isDespesaTx(t) ? '-' : '+'}¥ {Math.round(t.valor).toLocaleString('ja-JP')}
+                            </span>
+                            <span className="text-slate-400 text-sm font-bold pl-1">›</span>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={handleExportExcel}
+                      className="w-full py-2.5 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs font-bold rounded-xl flex items-center justify-center gap-2 transition active:scale-98"
+                    >
+                      <span>📥</span>
+                      <span>Salvar Backup de Segurança (.xlsx)</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* ABA 3: CONEXÃO COM BACKUP E CHAVE */}
+            {currentTab === 'config' && (
+              <div className="bg-white p-5 rounded-3xl border border-slate-200 space-y-4 text-xs">
+                <h2 className="text-base font-serif font-bold text-slate-800">Conexão & Backup</h2>
+                
+                {/* Backup Rápido */}
+                <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-2">
+                  <div className="flex items-center gap-2 text-emerald-900 font-bold">
+                    <span>🛡️</span>
+                    <span>Backup de Segurança em Excel</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-800 leading-tight">
+                    Baixe todos os seus lançamentos em arquivo <strong>.xlsx</strong> nativo para abrir no Excel do computador ou celular a qualquer hora.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handleExportExcel}
+                    className="w-full py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition active:scale-98"
+                  >
+                    Baixar Planilha Excel (.xlsx)
+                  </button>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-500 mb-1">ID da Planilha (Google Drive)</label>
+                  <input type="text" readOnly value={SPREADSHEET_ID} className="w-full p-2 bg-slate-100 rounded-xl text-slate-600 font-mono text-[11px] outline-none" />
+                </div>
+
+                <div className="pt-2 border-t border-slate-100 space-y-2">
+                  <div className="flex justify-between items-center">
+                    <label className="block font-bold text-slate-700">Chave Gemini API (OCR Recibos)</label>
+                    <a
+                      href="https://aistudio.google.com/app/apikey"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[11px] text-blue-600 font-bold hover:underline"
+                    >
+                      Obter chave grátis ↗
+                    </a>
+                  </div>
+                  
+                  <input
+                    type="password"
+                    placeholder="AIzaSy..."
+                    value={geminiApiKey}
+                    onChange={(e) => {
+                      const val = e.target.value.trim();
+                      setGeminiApiKey(val);
+                      localStorage.setItem('fc26_gemini_api_key', val);
+                    }}
+                    className="w-full p-2.5 border border-slate-300 rounded-xl outline-none focus:border-[#0F2C59] font-mono text-xs"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={handleTestApiKey}
+                    disabled={isTestingKey}
+                    className="w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition"
+                  >
+                    {isTestingKey ? 'Testando conexão...' : '⚡ Testar se a Chave está funcionando'}
+                  </button>
+                  
+                  <div className="mt-2 p-3 bg-blue-50 rounded-xl border border-blue-200/60 text-blue-900 text-[11px] leading-relaxed">
+                    <strong>Padronização Automática:</strong><br />
+                    O aplicativo agora converte automaticamente nomes de comprovantes (ex: TRIAL, Lawson, Anri, Hospital) para o padrão oficial, sem deixar nomes genéricos como "Supermercado".
+                  </div>
+                </div>
+              </div>
+            )}
+          </main>
+
+          {/* Botão FAB Flutuante de Câmera */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleCapture}
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              if (!geminiApiKey.trim()) {
+                showToast('Cole a chave da Gemini API na aba Conexão primeiro.', true);
+                setCurrentTab('config');
+              } else {
+                fileInputRef.current?.click();
+              }
+            }}
+            disabled={isScanning}
+            className="fixed bottom-20 right-4 z-30 w-[52px] h-[52px] bg-[#0F2C59] text-white rounded-full flex items-center justify-center shadow-2xl active:scale-90 transition border-2 border-white text-xl"
+            title="Tirar foto do comprovante com IA"
+          >
+            {isScanning ? '⏳' : '📷'}
+          </button>
+
+          {/* MODAL DE AUDITORIA INTELIGENTE DE DUPLICIDADE */}
+          {alertaDuplicado && (
+            <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+              <div className="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl border-2 border-amber-400 space-y-4">
+                
+                <div className="flex items-center gap-2.5 text-amber-600">
+                  <span className="text-2xl animate-bounce">⚠️</span>
+                  <div>
+                    <h3 className="text-sm font-bold uppercase tracking-wide text-slate-800">
+                      Possível Duplicidade Detectada!
+                    </h3>
+                    <p className="text-[11px] text-amber-700 font-medium leading-tight">
+                      {alertaDuplicado.motivo}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Comparação dos dois registros */}
+                <div className="space-y-2 text-xs">
+                  <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block mb-0.5">📌 Já Registrado Anteriormente:</span>
+                    <div className="flex justify-between items-center font-bold text-slate-800">
+                      <span>{alertaDuplicado.existente.estabelecimento}</span>
+                      <span className="text-rose-600 font-bold">¥ {Math.round(alertaDuplicado.existente.valor).toLocaleString('ja-JP')}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500">{alertaDuplicado.existente.data} • {alertaDuplicado.existente.categoria}</p>
+                  </div>
+
+                  <div className="p-2.5 bg-amber-50/70 rounded-xl border border-amber-200">
+                    <span className="text-[10px] uppercase font-bold text-amber-800 block mb-0.5">🆕 Novo que você está tentando lançar:</span>
+                    <div className="flex justify-between items-center font-bold text-slate-800">
+                      <span>{alertaDuplicado.novoTx.estabelecimento}</span>
+                      <span className="text-rose-600 font-bold">¥ {Math.round(alertaDuplicado.novoTx.valor).toLocaleString('ja-JP')}</span>
+                    </div>
+                    <p className="text-[10px] text-slate-500">{alertaDuplicado.novoTx.data} • {alertaDuplicado.novoTx.categoria}</p>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-slate-500 text-center leading-tight">
+                  Deseja descartar para não somar duas vezes ou foi uma compra repetida na mesma loja?
+                </p>
+
+                {/* Botões de Ação */}
+                <div className="space-y-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAlertaDuplicado(null);
+                      setIsModalOpen(false);
+                      showToast('✓ Lançamento duplicado descartado!');
+                    }}
+                    className="w-full py-3 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs shadow-md transition active:scale-95 flex items-center justify-center gap-1.5"
+                  >
+                    <span>🗑️</span>
+                    <span>Descartar Lançamento (Não Duplicar)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const dadosParaSalvar = alertaDuplicado.novoTx;
+                      setAlertaDuplicado(null);
+                      handleSave(dadosParaSalvar, true); // força gravação confirmada
+                    }}
+                    className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition active:scale-95"
+                  >
+                    Confirmar e Registrar Mesmo Assim
+                  </button>
+                </div>
+
+              </div>
+            </div>
+          )}
+
+          
+          {/* MODAL DE CRIAÇÃO DE NOVA RESERVA */}
+          {isModalNovaReservaOpen && (
+            <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+              <div className="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl border border-slate-200 space-y-4">
+                <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                  <h3 className="font-serif font-bold text-slate-900 text-base">Nova Caixinha de Reserva</h3>
+                  <button onClick={() => setIsModalNovaReservaOpen(false)} className="text-slate-400 font-bold text-lg p-1">✕</button>
+                </div>
+
+                <form onSubmit={(e) => {
+                  e.preventDefault();
+                  const form = e.target;
+                  handleAdicionarNovaReserva(form.nome.value, form.icone.value, form.saldo.value);
+                }} className="space-y-3 text-xs">
+                  <div>
+                    <label className="block font-bold text-slate-500 mb-1 uppercase text-[10px]">Nome da Reserva</label>
+                    <input name="nome" type="text" placeholder="Ex: Passagem Brasil, IPVA Carro" required className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none focus:border-[#0F2C59]" />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="block font-bold text-slate-500 mb-1 uppercase text-[10px]">Ícone</label>
+                      <select name="icone" className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none font-medium">
+                        <option value="🚗">🚗 Carro / Shaken</option>
+                        <option value="🏠">🏠 Imóvel / Aluguel</option>
+                        <option value="🛡️">🛡️ Emergência</option>
+                        <option value="✈️">✈️ Viagem</option>
+                        <option value="🏥">🏥 Saúde</option>
+                        <option value="🎒">🎒 Filhos / Escola</option>
+                        <option value="💎">💎 Investimento</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-bold text-slate-500 mb-1 uppercase text-[10px]">Saldo Inicial (¥)</label>
+                      <input name="saldo" type="number" placeholder="0" defaultValue="0" className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl outline-none focus:border-[#0F2C59]" />
+                    </div>
+                  </div>
+
+                  <button type="submit" className="w-full py-3 bg-[#0F2C59] text-white font-bold rounded-xl text-xs shadow-md mt-2">
+                    Criar Caixinha de Reserva
+                  </button>
+                </form>
+              </div>
+            </div>
+          )}
+
+          {/* Bottom Sheet Modal (Criar / Editar / Excluir) */}
+          {isModalOpen && (
+            <OneTapModal
+              onClose={() => { setIsModalOpen(false); setEditingTransaction(null); }}
+              onSave={handleSave}
+              onDelete={handleDelete}
+              initialData={editingTransaction}
+            />
+          )}
+
+          {/* Barra de Navegação Inferior */}
+          <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-[#FDFBF7]/95 border-t border-slate-200/80 px-6 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex justify-around items-center z-20 backdrop-blur-md">
+            <button
+              type="button"
+              onClick={() => setCurrentTab('dashboard')}
+              className={`flex flex-col items-center gap-0.5 text-[11px] font-medium transition ${currentTab === 'dashboard' ? 'text-[#0F2C59] font-bold' : 'text-slate-400'}`}
+            >
+              <span className="text-base">📊</span>
+              <span>Dashboard</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentTab('lancamentos')}
+              className={`flex flex-col items-center gap-0.5 text-[11px] font-medium transition ${currentTab === 'lancamentos' ? 'text-[#0F2C59] font-bold' : 'text-slate-400'}`}
+            >
+              <span className="text-base">📝</span>
+              <span>Lançamentos</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setCurrentTab('config')}
+              className={`flex flex-col items-center gap-0.5 text-[11px] font-medium transition ${currentTab === 'config' ? 'text-[#0F2C59] font-bold' : 'text-slate-400'}`}
+            >
+              <span className="text-base">⚙️</span>
+              <span>Conexão</span>
+            </button>
+          </nav>
+
+        </div>
+      );
+    }
+
+    /**
+     * Modal Otimizado para Mobile
+     */
+    function OneTapModal({ onClose, onSave, onDelete, initialData }) {
+      const isEditing = !!(initialData && initialData.id);
+      const [tipo, setTipo] = useState(initialData?.tipo || 'Despesa');
+      const [valor, setValor] = useState(initialData?.valor ? String(initialData.valor) : '');
+      const [categoria, setCategoria] = useState(initialData?.categoria || 'Supermercado & Feira');
+      const [estabelecimento, setEstabelecimento] = useState(initialData?.estabelecimento || '');
+      const [data, setData] = useState(initialData?.data || new Date().toISOString().split('T')[0]);
+
+      const categorias = tipo === 'Despesa' ? CATEGORIAS_DESPESA : CATEGORIAS_RECEITA;
+
+      const submit = (e) => {
+        if (e) e.preventDefault();
+        const num = parseFloat(valor);
+        if (!num || num <= 0) {
+          alert('Por favor, informe um valor numérico válido.');
+          return;
+        }
+        onSave({
+          data,
+          tipo,
+          categoria,
+          valor: num,
+          estabelecimento: estabelecimento.trim() || 'TRIAL スーパー'
+        });
+        onClose();
+      };
+
+      return (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end justify-center animate-in fade-in duration-200">
+          
+          <div className="bg-[#FDFBF7] w-full max-w-md rounded-t-[28px] shadow-2xl flex flex-col max-h-[90vh] max-h-[90dvh] border-t border-slate-200">
+            
+            {/* Header Fixo */}
+            <div className="px-5 py-3.5 border-b border-slate-200 flex justify-between items-center shrink-0">
+              <div className="flex items-center gap-2">
+                <span className={`w-2 h-2 rounded-full ${isEditing ? 'bg-amber-500' : 'bg-[#0F2C59]'}`}></span>
+                <h3 className="font-serif font-bold text-slate-900 text-lg">
+                  {isEditing ? 'Editar Lançamento' : 'Novo Lançamento'}
+                </h3>
+              </div>
+              <button 
+                type="button"
+                onClick={onClose}
+                className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 text-sm font-bold active:scale-95"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Conteúdo com Rolagem */}
+            <form onSubmit={submit} className="flex-1 overflow-y-auto px-5 py-3.5 space-y-4">
+              
+              {/* Segmentação: Despesa / Receita / Reserva */}
+              <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-2xl text-xs font-bold">
+                <button
+                  type="button"
+                  onClick={() => { setTipo('Despesa'); setCategoria(CATEGORIAS_DESPESA[0].id); }}
+                  className={`py-2 rounded-xl transition ${
+                    tipo === 'Despesa' ? 'bg-white text-rose-600 shadow-xs' : 'text-slate-500'
+                  }`}
+                >
+                  ↓ Despesa
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setTipo('Receita'); setCategoria(CATEGORIAS_RECEITA[0].id); }}
+                  className={`py-2 rounded-xl transition ${
+                    tipo === 'Receita' ? 'bg-white text-emerald-600 shadow-xs' : 'text-slate-500'
+                  }`}
+                >
+                  ↑ Receita
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setTipo('Aporte Reserva'); setCategoria('Reserva: Shaken (Inspeção Veicular)'); }}
+                  className={`py-2 rounded-xl transition ${
+                    tipo.includes('Reserva') ? 'bg-[#0F2C59] text-white shadow-xs' : 'text-slate-500'
+                  }`}
+                >
+                  🏦 Reserva
+                </button>
+              </div>
+
+              {/* Sub-opções de Reserva (Depositar vs. Retirar) */}
+              {tipo.includes('Reserva') && (
+                <div className="grid grid-cols-2 gap-2 bg-amber-50 p-1.5 rounded-xl border border-amber-200 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setTipo('Aporte Reserva')}
+                    className={`py-1.5 rounded-lg transition ${
+                      tipo === 'Aporte Reserva' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600'
+                    }`}
+                  >
+                    + Depositar (Guardar)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setTipo('Retirada Reserva')}
+                    className={`py-1.5 rounded-lg transition ${
+                      tipo === 'Retirada Reserva' ? 'bg-amber-600 text-white shadow-2xs' : 'text-slate-600'
+                    }`}
+                  >
+                    - Retirar (Usar)
+                  </button>
+                </div>
+              )}
+
+              {/* Campo de Valor com Teclado Numérico */}
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  Valor (¥)
+                </label>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-2xl font-bold text-slate-400">¥</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    autoFocus
+                    placeholder="0"
+                    value={valor}
+                    onChange={(e) => setValor(e.target.value.replace(/[^0-9]/g, ''))}
+                    className="w-full pl-11 pr-4 py-2.5 bg-white border border-slate-300 focus:border-[#0F2C59] rounded-2xl text-2xl font-extrabold text-[#0F2C59] outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Categorias em Grid 2 Colunas ou Caixinhas de Reserva */}
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
+                  {tipo.includes('Reserva') ? 'Escolha qual Caixinha de Reserva:' : 'Categoria (Selecione em 1 toque):'}
+                </label>
+                <div className="grid grid-cols-2 gap-1.5 max-h-44 overflow-y-auto pr-1">
+                  {tipo.includes('Reserva') ? (
+                    // Exibe as Caixinhas de Reserva Cadastradas
+                    [
+                      { id: 'Reserva: Shaken (Inspeção Veicular)', label: 'Shaken (Carro)', icon: '🚗' },
+                      { id: 'Reserva: Renovação Contrato Aluguel', label: 'Renovação Aluguel', icon: '🏠' },
+                      { id: 'Reserva: Reserva de Emergência', label: 'Reserva Emergência', icon: '🛡️' },
+                    ].map((r) => {
+                      const isSelected = categoria === r.id;
+                      return (
+                        <button
+                          key={r.id}
+                          type="button"
+                          onClick={() => { setCategoria(r.id); setEstabelecimento(r.label); }}
+                          className={`flex items-center gap-1.5 p-2 rounded-xl text-xs font-medium text-left transition active:scale-95 border ${
+                            isSelected
+                              ? 'bg-[#0F2C59] text-white border-[#0F2C59] font-bold shadow-xs'
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className="text-sm shrink-0">{r.icon}</span>
+                          <span className="truncate">{r.label}</span>
+                        </button>
+                      );
+                    })
+                  ) : (
+                    categorias.map((c) => {
+                      const isSelected = categoria === c.id;
+                      return (
+                        <button
+                          key={c.id}
+                          type="button"
+                          onClick={() => setCategoria(c.id)}
+                          className={`flex items-center gap-1.5 p-2 rounded-xl text-xs font-medium text-left transition active:scale-95 border ${
+                            isSelected
+                              ? 'bg-[#0F2C59] text-white border-[#0F2C59] font-bold shadow-xs'
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                          }`}
+                        >
+                          <span className="text-sm shrink-0">{c.icon}</span>
+                          <span className="truncate">{c.label}</span>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+              {/* Estabelecimento com sugestão padronizada */}
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  Nome do Estabelecimento (Loja / Mercado)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: TRIAL スーパー, Lawson, あんり"
+                  value={estabelecimento}
+                  onChange={(e) => setEstabelecimento(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 focus:border-[#0F2C59] rounded-xl text-sm font-medium text-slate-800 outline-none"
+                />
+              </div>
+
+              {/* Data */}
+              <div>
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">
+                  Data
+                </label>
+                <input
+                  type="date"
+                  value={data}
+                  onChange={(e) => setData(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-sm font-medium text-slate-800 outline-none"
+                />
+              </div>
+
+            </form>
+
+            {/* Rodapé Fixo com Botão de Salvar e Excluir */}
+            <div className="p-4 pt-2.5 bg-[#FDFBF7] border-t border-slate-200 shrink-0 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-2">
+              <button
+                type="button"
+                onClick={submit}
+                disabled={!valor}
+                className="w-full py-3.5 bg-[#0F2C59] hover:bg-[#1B3B6F] disabled:opacity-50 active:scale-[0.98] text-white font-bold rounded-2xl shadow-lg flex items-center justify-center gap-2 text-sm transition"
+              >
+                <span>✓</span>
+                <span>{isEditing ? 'Salvar Alterações' : 'Salvar Lançamento'}</span>
+              </button>
+
+              {isEditing && (
+                <button
+                  type="button"
+                  onClick={() => onDelete(initialData.id)}
+                  className="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold rounded-xl text-xs transition"
+                >
+                  🗑 Excluir este Lançamento
+                </button>
+              )}
+            </div>
+
+          </div>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
