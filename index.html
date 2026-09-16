@@ -159,7 +159,9 @@
       { regex: /西松屋|nishimatsuya/i, nomeOficial: '西松屋 (Nishimatsuya)' },
       { regex: /島根大学|医学部|附属病院/i, nomeOficial: '島根大学医学部附属病院' },
       { regex: /murata|村田製作所/i, nomeOficial: '村田製作所' },
-      { regex: /児童手当|出雲市/i, nomeOficial: '出雲市 (Benefício)' },
+      { regex: /上下水道|水道局|下水道|水道/i, nomeOficial: '出雲市上下水道局' },
+      { regex: /児童手当|給付金|子育て支援/i, nomeOficial: '出雲市 (Benefício)' },
+      { regex: /出雲市役所|市役所/i, nomeOficial: '出雲市役所' },
     ];
 
     
@@ -219,6 +221,11 @@
       if (!nomeBruto || typeof nomeBruto !== 'string') return 'TRIAL スーパー';
       const limpo = nomeBruto.trim();
       
+      // Salvaguarda expressa para Companhia de Água e Esgoto de Izumo
+      if (limpo.includes('水道') || limpo.includes('上下水道局')) {
+        return '出雲市上下水道局';
+      }
+      
       // Procura regra de unificação
       for (const regra of REGRAS_PADRONIZACAO) {
         if (regra.regex.test(limpo)) {
@@ -236,18 +243,17 @@
     }
 
     const CATEGORIAS_DESPESA = [
-      { id: 'Supermercado & Feira', label: 'Supermercado', icon: '🛒' },
+      { id: 'Supermercado & Feira', label: 'Supermercado & Feira', icon: '🛒' },
       { id: 'Alimentação Fora & Lanches', label: 'Restaurante/Lanches', icon: '🍱' },
       { id: 'Moradia (Aluguel)', label: 'Moradia (Aluguel)', icon: '🏠' },
       { id: 'Contas Fixas & Utilidades', label: 'Luz, Gás & Água', icon: '💡' },
       { id: 'Serviços Financeiros & Impostos', label: 'Impostos/Finanças', icon: '🏛️' },
       { id: 'Saúde & Farmácia', label: 'Saúde/Farmácia', icon: '💊' },
-      { id: 'Educação & Filhos', label: 'Educação/Filhos', icon: '🎒' },
-      { id: 'Transporte & Carro', label: 'Gasolina/Carro', icon: '🚗' },
+      { id: 'Transporte & Combustível', label: 'Gasolina & Carro', icon: '🚗' },
+      { id: 'Educação & Filhos', label: 'Educação & Filhos', icon: '🎒' },
       { id: 'Lazer, Compras & Variados', label: 'Lazer & Compras', icon: '🛍️' },
-      { id: 'Pessoal, Roupas & Cuidados', label: 'Pessoal & Roupas', icon: '✂️' },
-      { id: 'Doações & Remessas', label: 'Doações/Remessas', icon: '🤝' },
-      { id: 'Reservas & Investimentos', label: 'Investimentos', icon: '📈' },
+      { id: 'Comunicação & Assinaturas', label: 'Internet & Celular', icon: '📱' },
+      { id: 'Roupas & Vestuário', label: 'Roupas & Vestuário', icon: '👕' },
     ];
 
     const CATEGORIAS_RECEITA = [
@@ -1376,31 +1382,49 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                 
                 {/* Card de Liquidez com EMOJI ANIMADO DE STATUS */}
                 <div className="bg-[#0F2C59] text-white rounded-3xl p-5 shadow-lg relative overflow-hidden">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-[10px] uppercase tracking-wider text-blue-200 font-bold">Saldo Líquido Acumulado</span>
-                    
-                    {/* Badge e Emoji Animado */}
-                    {saldo < 0 ? (
-                      <div className="flex items-center gap-1.5 bg-rose-600/90 px-2.5 py-0.5 rounded-full">
-                        <span className="text-sm animate-wobble">🫣</span>
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-white">Atenção</span>
-                      </div>
-                    ) : (
-                      <div className="flex items-center gap-1.5 bg-emerald-600/90 px-2.5 py-0.5 rounded-full">
-                        <span className="text-sm animate-happy">🤑</span>
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-white">Saudável</span>
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="flex items-baseline gap-2 my-2">
-                    <h2 className="text-3xl sm:text-4xl font-extrabold text-rose-200 tracking-tight">
-                      -¥ {Math.abs(saldo).toLocaleString('ja-JP')}
-                    </h2>
-                    <span className="text-2xl animate-wobble">
-                      {saldo < 0 ? '😟' : '😃'}
-                    </span>
-                  </div>
+                  {(() => {
+                    const caixaLivre = saldo - totalAlocadoReservas;
+                    let badgeBg = 'bg-emerald-600/90';
+                    let badgeEmoji = '🤑';
+                    let badgeTexto = 'Saudável';
+                    let statusMsg = 'Saldo positivo e reservas cobertas com folga de caixa!';
+
+                    if (saldo < 0) {
+                      badgeBg = 'bg-rose-600/90';
+                      badgeEmoji = '🫣';
+                      badgeTexto = 'Atenção';
+                      statusMsg = 'Despesas acumuladas superam as receitas no momento.';
+                    } else if (caixaLivre < 0) {
+                      badgeBg = 'bg-amber-600/90';
+                      badgeEmoji = '⚠️';
+                      badgeTexto = 'Caixa Comprometido';
+                      statusMsg = `Saldo global positivo (+¥ ${Math.round(saldo).toLocaleString('ja-JP')}), porém o caixa livre está comprometido pelas reservas.`;
+                    }
+
+                    return (
+                      <>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-[10px] uppercase tracking-wider text-blue-200 font-bold">Saldo Líquido Acumulado</span>
+                          
+                          <div className={`flex items-center gap-1.5 ${badgeBg} px-2.5 py-0.5 rounded-full shadow-2xs`}>
+                            <span className="text-sm animate-wobble">{badgeEmoji}</span>
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-white">{badgeTexto}</span>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-baseline gap-2 my-2">
+                          <h2 className={`text-3xl sm:text-4xl font-extrabold tracking-tight ${
+                            saldo < 0 ? 'text-rose-300' : 'text-emerald-300'
+                          }`}>
+                            {saldo < 0 ? '-¥ ' : '+¥ '}{Math.abs(Math.round(saldo)).toLocaleString('ja-JP')}
+                          </h2>
+                          <span className="text-2xl animate-wobble">
+                            {saldo < 0 ? '😟' : caixaLivre < 0 ? '😐' : '😃'}
+                          </span>
+                        </div>
+                      </>
+                    );
+                  })()}
 
                   {/* Detalhamento de Reservas vs. Caixa Livre Disponível */}
                   <div className="bg-blue-950/50 rounded-2xl p-3 my-2.5 border border-blue-800/40 text-xs space-y-1.5">
@@ -1447,6 +1471,21 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                   <span className="text-lg leading-none">+</span>
                   <span>Registrar Despesa / Receita</span>
                 </button>
+
+                {/* Status do Mês Dinâmico em Tempo Real */}
+                <div className="bg-white rounded-2xl p-3.5 border border-slate-200/80 shadow-xs flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center text-xl shrink-0">
+                    <span className="animate-wobble">⚡</span>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
+                      {NOMES_MESES[mesCalendario]} em Andamento
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5 font-medium">
+                      <strong className="text-slate-900">{qtdMovimentosMesAtual}</strong> {qtdMovimentosMesAtual === 1 ? 'movimento registrado' : 'movimentos registrados'} na base central (¥ {Math.round(despesasMesAtual).toLocaleString('ja-JP')})
+                    </p>
+                  </div>
+                </div>
 
                 {/* SEÇÃO DE CONTROLE DE RESERVAS (Shaken, Aluguel, Emergência) */}
                 <div className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-xs space-y-3">
@@ -1923,21 +1962,6 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                     </div>
                   );
                 })()}
-
-                {/* Status do Mês Dinâmico em Tempo Real */}
-                <div className="bg-white rounded-2xl p-3.5 border border-slate-200/80 shadow-xs flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-700 flex items-center justify-center text-xl shrink-0">
-                    <span className="animate-wobble">⚡</span>
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wide">
-                      {NOMES_MESES[mesCalendario]} em Andamento
-                    </h3>
-                    <p className="text-xs text-slate-500 mt-0.5 font-medium">
-                      <strong className="text-slate-900">{qtdMovimentosMesAtual}</strong> {qtdMovimentosMesAtual === 1 ? 'movimento registrado' : 'movimentos registrados'} na base central (¥ {Math.round(despesasMesAtual).toLocaleString('ja-JP')})
-                    </p>
-                  </div>
-                </div>
 
                 {/* Maiores Categorias Dinâmicas em Tempo Real */}
                 <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-3">
