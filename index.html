@@ -1,4 +1,4 @@
-
+<!DOCTYPE html>
 <html lang="pt-BR" class="h-full">
 <head>
   <meta charset="UTF-8">
@@ -476,6 +476,80 @@
       // Estado do Modal de Auditoria de Duplicidade
       const [alertaDuplicado, setAlertaDuplicado] = useState(null);
 
+      // ESTADOS E DADOS DO MÓDULO FOREX & GRÁFICO DINÂMICO
+      const DADOS_FOREX = {
+        USD_JPY: {
+          id: 'USD_JPY', base: 'USD', alvo: 'JPY', nome: 'Dólar Americano / Iene',
+          bandeiraBase: '🇺🇸', bandeiraAlvo: '🇯🇵', simboloBase: '$', simboloAlvo: '¥',
+          cotacao: 155.3840, variacao: 0.07, subindo: true,
+          series: {
+            '1D': { pts: [155.24, 155.18, 155.22, 155.35, 155.45, 155.40, 155.32, 155.384], datas: ['00:00', '08:00', '16:00', 'Agora'], max: 155.48, med: 155.32, min: 155.16 },
+            '1W': { pts: [154.10, 154.60, 155.10, 154.90, 155.30, 155.20, 155.384], datas: ['10 Set', '12 Set', '14 Set', 'Hoje'], max: 155.50, med: 154.80, min: 154.00 },
+            '1M': { pts: [152.40, 153.20, 154.10, 153.80, 154.70, 155.10, 155.384], datas: ['16 Ago', '26 Ago', '06 Set', 'Hoje'], max: 155.60, med: 153.90, min: 152.20 },
+            '3M': { pts: [159.20, 157.40, 155.80, 153.90, 154.60, 155.384], datas: ['Junho', 'Julho', 'Agosto', 'Setembro'], max: 160.00, med: 156.50, min: 153.50 },
+            '1Y': { pts: [147.44, 151.20, 156.80, 161.90, 163.84, 158.10, 154.50, 155.384], datas: ['19 Sept', '18 Mar', '16 Sept'], max: 163.84, med: 155.64, min: 147.44 },
+            '5Y': { pts: [105.20, 115.40, 130.50, 145.20, 151.80, 161.00, 155.384], datas: ['2021', '2023', '2025', '2026'], max: 164.00, med: 135.00, min: 104.50 }
+          }
+        },
+        BRL_JPY: {
+          id: 'BRL_JPY', base: 'BRL', alvo: 'JPY', nome: 'Real Brasileiro / Iene',
+          bandeiraBase: '🇧🇷', bandeiraAlvo: '🇯🇵', simboloBase: 'R$', simboloAlvo: '¥',
+          cotacao: 30.2020, variacao: 0.06, subindo: true,
+          series: {
+            '1D': { pts: [30.18, 30.16, 30.17, 30.19, 30.21, 30.19, 30.202], datas: ['00:00', '08:00', '16:00', 'Agora'], max: 30.24, med: 30.18, min: 30.14 },
+            '1W': { pts: [29.80, 29.95, 30.05, 30.12, 30.18, 30.202], datas: ['10 Set', '12 Set', '14 Set', 'Hoje'], max: 30.25, med: 30.00, min: 29.75 },
+            '1M': { pts: [29.10, 29.40, 29.65, 29.90, 30.10, 30.202], datas: ['16 Ago', '26 Ago', '06 Set', 'Hoje'], max: 30.30, med: 29.65, min: 29.00 },
+            '3M': { pts: [28.50, 28.90, 29.20, 29.80, 30.15, 30.202], datas: ['Junho', 'Julho', 'Agosto', 'Setembro'], max: 30.35, med: 29.35, min: 28.40 },
+            '1Y': { pts: [27.80, 28.40, 29.10, 30.50, 29.80, 30.202], datas: ['19 Sept', '18 Mar', '16 Sept'], max: 31.20, med: 29.50, min: 27.60 },
+            '5Y': { pts: [20.10, 22.40, 25.80, 28.20, 29.50, 30.202], datas: ['2021', '2023', '2025', '2026'], max: 31.50, med: 25.80, min: 19.80 }
+          }
+        },
+        EUR_JPY: {
+          id: 'EUR_JPY', base: 'EUR', alvo: 'JPY', nome: 'Euro / Iene Japonês',
+          bandeiraBase: '🇪🇺', bandeiraAlvo: '🇯🇵', simboloBase: '€', simboloAlvo: '¥',
+          cotacao: 179.3320, variacao: 0.10, subindo: true,
+          series: {
+            '1D': { pts: [179.15, 179.05, 179.18, 179.25, 179.30, 179.332], datas: ['00:00', '08:00', '16:00', 'Agora'], max: 179.40, med: 179.20, min: 179.00 },
+            '1W': { pts: [178.10, 178.50, 178.90, 179.10, 179.25, 179.332], datas: ['10 Set', '12 Set', '14 Set', 'Hoje'], max: 179.45, med: 178.70, min: 178.00 },
+            '1M': { pts: [176.40, 177.20, 178.10, 178.80, 179.332], datas: ['16 Ago', '26 Ago', '06 Set', 'Hoje'], max: 179.50, med: 177.85, min: 176.20 },
+            '3M': { pts: [174.20, 175.80, 177.10, 178.50, 179.332], datas: ['Junho', 'Julho', 'Agosto', 'Setembro'], max: 179.60, med: 176.75, min: 173.90 },
+            '1Y': { pts: [162.50, 168.20, 172.40, 176.10, 178.20, 179.332], datas: ['19 Sept', '18 Mar', '16 Sept'], max: 181.50, med: 171.00, min: 161.80 },
+            '5Y': { pts: [120.40, 132.10, 145.80, 160.20, 172.50, 179.332], datas: ['2021', '2023', '2025', '2026'], max: 182.00, med: 151.00, min: 119.50 }
+          }
+        },
+        USD_BRL: {
+          id: 'USD_BRL', base: 'USD', alvo: 'BRL', nome: 'Dólar Americano / Real',
+          bandeiraBase: '🇺🇸', bandeiraAlvo: '🇧🇷', simboloBase: '$', simboloAlvo: 'R$',
+          cotacao: 5.1440, variacao: -0.15, subindo: false,
+          series: {
+            '1D': { pts: [5.16, 5.155, 5.15, 5.148, 5.144], datas: ['00:00', '08:00', '16:00', 'Agora'], max: 5.17, med: 5.15, min: 5.14 },
+            '1W': { pts: [5.18, 5.17, 5.16, 5.15, 5.144], datas: ['10 Set', '12 Set', '14 Set', 'Hoje'], max: 5.19, med: 5.16, min: 5.14 },
+            '1M': { pts: [5.25, 5.22, 5.19, 5.16, 5.144], datas: ['16 Ago', '26 Ago', '06 Set', 'Hoje'], max: 5.26, med: 5.20, min: 5.14 },
+            '3M': { pts: [5.35, 5.28, 5.20, 5.17, 5.144], datas: ['Junho', 'Julho', 'Agosto', 'Setembro'], max: 5.38, med: 5.25, min: 5.14 },
+            '1Y': { pts: [4.95, 5.05, 5.22, 5.38, 5.25, 5.144], datas: ['19 Sept', '18 Mar', '16 Sept'], max: 5.42, med: 5.18, min: 4.92 },
+            '5Y': { pts: [5.10, 5.40, 5.60, 5.20, 4.90, 5.144], datas: ['2021', '2023', '2025', '2026'], max: 5.70, med: 5.25, min: 4.85 }
+          }
+        },
+        BTC_JPY: {
+          id: 'BTC_JPY', base: 'BTC', alvo: 'JPY', nome: 'Bitcoin / Iene Japonês',
+          bandeiraBase: '₿', bandeiraAlvo: '🇯🇵', simboloBase: '₿', simboloAlvo: '¥',
+          cotacao: 11771178, variacao: 0.30, subindo: true,
+          series: {
+            '1D': { pts: [11736445, 11745000, 11760000, 11780000, 11771178], datas: ['00:00', '08:00', '16:00', 'Agora'], max: 11800000, med: 11760000, min: 11720000 },
+            '1W': { pts: [11450000, 11520000, 11650000, 11720000, 11771178], datas: ['10 Set', '12 Set', '14 Set', 'Hoje'], max: 11800000, med: 11600000, min: 11400000 },
+            '1M': { pts: [10850000, 11100000, 11350000, 11550000, 11771178], datas: ['16 Ago', '26 Ago', '06 Set', 'Hoje'], max: 11850000, med: 11300000, min: 10800000 },
+            '3M': { pts: [9800000, 10400000, 11100000, 11500000, 11771178], datas: ['Junho', 'Julho', 'Agosto', 'Setembro'], max: 11900000, med: 10850000, min: 9750000 },
+            '1Y': { pts: [6500000, 8200000, 9800000, 10900000, 11771178], datas: ['19 Sept', '18 Mar', '16 Sept'], max: 12100000, med: 9300000, min: 6400000 },
+            '5Y': { pts: [1200000, 3500000, 5800000, 8200000, 11771178], datas: ['2021', '2023', '2025', '2026'], max: 12200000, med: 6700000, min: 1150000 }
+          }
+        }
+      };
+
+      const [parSelecionado, setParSelecionado] = useState('USD_JPY');
+      const [timeframeSelecionado, setTimeframeSelecionado] = useState('1Y');
+      const [isInvertido, setIsInvertido] = useState(false);
+      const [valorConversao, setValorConversao] = useState('100');
+
       // CAIXINHAS DE RESERVA (Shaken, Renovação de Aluguel, Emergência, etc.)
       const RESERVAS_PADRAO = [
         { id: 'res-shaken', nome: 'Shaken (Inspeção Veicular)', icone: '🚗', saldoInicial: 0 },
@@ -771,16 +845,17 @@
         }
       };
 
-      // Alterna carimbo ao clicar no dia (ciclo ou carimbo ativo)
+      // Alterna carimbo ao clicar diretamente dentro do campo do dia (ciclo ou carimbo ativo)
       const handleDiaClick = (dia) => {
-        if (!dia) return;
+        if (!dia || !modoEntrada) return; // Bloqueado para edição se 入力モード estiver desabilitado!
         const atual = escalaMes[dia] || '';
         let novo = '';
 
         if (carimboAtivo !== null) {
           novo = atual === carimboAtivo ? '' : carimboAtivo;
         } else {
-          const ciclo = ['', '休', '出勤', '休出', '欠勤', '休み', '早退', '遅刻'];
+          // Ciclo completo por clique direto dentro do dia incluindo 外出
+          const ciclo = ['', '休', '出勤', '休出', '欠勤', '休み', '早退', '遅刻', '外出'];
           const proxIdx = (ciclo.indexOf(atual) + 1) % ciclo.length;
           novo = ciclo[proxIdx];
         }
@@ -1545,35 +1620,41 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                           if (carimbo === '外出') badgeBg = 'bg-[#fbcfe8] text-[#831843] border-[#f472b6]';
 
                           return (
-                            <button
+                            <div
                               key={'dia-' + dia}
-                              type="button"
-                              onClick={() => {
-                                setDiaSelecionadoMemo(dia);
-                                if (modoEntrada) {
-                                  setDiaEditando(dia);
-                                  setIsModalMemoOpen(true);
-                                } else if (carimboAtivo !== null) {
-                                  handleDiaClick(dia);
-                                }
-                              }}
-                              className={`min-h-[52px] p-1 rounded-xl flex flex-col justify-between items-center transition active:scale-90 border relative ${
+                              onClick={() => setDiaSelecionadoMemo(dia)}
+                              className={`min-h-[58px] p-1 rounded-2xl flex flex-col justify-between items-center transition border select-none relative ${
                                 isSelecionado
                                   ? 'ring-2 ring-emerald-500 bg-emerald-50/40 border-emerald-300 shadow-xs'
                                   : isHoje 
                                   ? 'ring-2 ring-[#0F2C59] bg-amber-50/70 border-amber-300 shadow-xs' 
                                   : diaSemana === 0 
-                                  ? 'bg-rose-50/30 border-rose-100/70 hover:bg-rose-50' 
+                                  ? 'bg-rose-50/30 border-rose-100/70' 
                                   : diaSemana === 6 
-                                  ? 'bg-blue-50/30 border-blue-100/70 hover:bg-blue-50' 
-                                  : 'bg-white border-slate-100 hover:bg-slate-50'
+                                  ? 'bg-blue-50/30 border-blue-100/70' 
+                                  : 'bg-white border-slate-100'
                               }`}
-                              title={`Dia ${dia} - Toque para detalhes/memo`}
                             >
-                              {/* Topo da Célula: Número do Dia + Bolinha Vermelha com Kanji 祝 + Marcação (外出, 保険...) */}
+                              {/* 1. CLIQUE NO NÚMERO DO DIA: ABRE JANELA DE CONFIGURAÇÃO DO MEMO E MARCAÇÃO */}
                               <div className="w-full flex justify-between items-center px-0.5">
-                                <div className="flex items-center gap-0.5">
-                                  <span className={`text-[11px] font-bold leading-none ${
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDiaSelecionadoMemo(dia);
+                                    if (modoEntrada) {
+                                      setDiaEditando(dia);
+                                      setIsModalMemoOpen(true);
+                                    } else {
+                                      showToast(`Modo Leitura: ative o 入力モード para editar o memo do dia ${dia}.`);
+                                    }
+                                  }}
+                                  className={`flex items-center gap-0.5 px-1 py-0.5 rounded-lg transition ${
+                                    modoEntrada ? 'hover:bg-slate-200/90 active:scale-95 cursor-pointer' : 'cursor-default'
+                                  }`}
+                                  title={modoEntrada ? `Clique para configurar memo e horário do dia ${dia}` : `Dia ${dia}`}
+                                >
+                                  <span className={`text-[12px] font-bold leading-none ${
                                     diaSemana === 0 ? 'text-rose-600' : diaSemana === 6 ? 'text-blue-600' : 'text-slate-700'
                                   }`}>
                                     {dia}
@@ -1584,24 +1665,58 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                                       祝
                                     </span>
                                   )}
-                                </div>
+                                </button>
 
                                 {/* Marcação de até 2 kanjis (外出, 保険, 再診, 半日, 🩸, 👣) */}
                                 {mark && (
-                                  <span className="text-[8px] font-bold text-slate-800 bg-amber-100/90 text-amber-900 px-0.5 rounded leading-none truncate max-w-[28px] border border-amber-300/50">
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setDiaSelecionadoMemo(dia);
+                                      if (modoEntrada) {
+                                        setDiaEditando(dia);
+                                        setIsModalMemoOpen(true);
+                                      }
+                                    }}
+                                    className={`text-[8.5px] font-bold text-amber-950 bg-amber-100/90 px-1 py-0.5 rounded leading-none truncate max-w-[32px] border border-amber-300/50 ${
+                                      modoEntrada ? 'hover:bg-amber-200 cursor-pointer active:scale-95' : 'cursor-default'
+                                    }`}
+                                    title={`Marcação: ${mark}`}
+                                  >
                                     {mark}
-                                  </span>
+                                  </button>
                                 )}
                               </div>
 
-                              {/* Carimbo de Turno no Centro do Dia */}
-                              {carimbo ? (
-                                <span className={`w-full py-0.5 rounded-md text-[10px] font-bold border ${badgeBg} shadow-2xs leading-tight truncate`}>
-                                  {carimbo}
-                                </span>
-                              ) : (
-                                <span className="text-[9px] text-transparent leading-none">•</span>
-                              )}
+                              {/* 2. CLIQUE DIRETO NO CAMPO DO DIA: SELEÇÃO RÁPIDA DE CARIMBO / FOLGA */}
+                              <div
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setDiaSelecionadoMemo(dia);
+                                  if (modoEntrada) {
+                                    handleDiaClick(dia);
+                                  } else {
+                                    showToast('Calendário bloqueado para edição. Ative o 入力モード para alterar folgas.');
+                                  }
+                                }}
+                                className={`w-full flex-1 flex flex-col justify-center items-center my-0.5 transition ${
+                                  modoEntrada ? 'hover:opacity-90 active:scale-90 cursor-pointer' : 'cursor-default'
+                                }`}
+                                title={modoEntrada ? `Clique direto para alternar ou aplicar carimbo no dia ${dia}` : 'Calendário bloqueado'}
+                              >
+                                {carimbo ? (
+                                  <span className={`w-full py-1 rounded-lg text-[10.5px] font-bold border ${badgeBg} shadow-2xs leading-tight truncate text-center`}>
+                                    {carimbo}
+                                  </span>
+                                ) : (
+                                  <span className={`w-full py-1 rounded-lg border border-dashed text-[10px] text-center ${
+                                    modoEntrada ? 'border-slate-300/80 text-slate-400 hover:border-[#0F2C59] hover:bg-slate-50' : 'border-transparent text-transparent'
+                                  }`}>
+                                    {modoEntrada ? '+' : '•'}
+                                  </span>
+                                )}
+                              </div>
 
                               {/* Rodapé da Célula: Indicador de Folga Juntos e Indicador de Memo */}
                               <div className="w-full flex justify-between items-center px-0.5 min-h-[10px]">
@@ -1627,7 +1742,7 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                                   return null;
                                 })()}
                               </div>
-                            </button>
+                            </div>
                           );
                         })}
                       </div>
@@ -1643,16 +1758,25 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                           <span>&lt;&lt;</span>
                         </button>
 
-                        {/* Toggle Switch 入力モード (Modo de Entrada) */}
-                        <div className="flex items-center gap-2 bg-slate-100 px-3 py-1 rounded-full border border-slate-200 shadow-2xs">
-                          <span className="text-xs font-bold text-slate-800">入力モード</span>
+                        {/* Toggle Switch 入力モード (Modo de Entrada / Bloqueio de Edição) */}
+                        <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-full border border-slate-200 shadow-2xs">
+                          <div className="flex items-center gap-1.5 text-xs font-bold">
+                            <span>{modoEntrada ? '✏️' : '🔒'}</span>
+                            <span className={modoEntrada ? 'text-emerald-800' : 'text-slate-500'}>
+                              入力モード {modoEntrada ? '(Edição)' : '(Bloqueado)'}
+                            </span>
+                          </div>
                           <button
                             type="button"
-                            onClick={() => setModoEntrada(!modoEntrada)}
+                            onClick={() => {
+                              const novoModo = !modoEntrada;
+                              setModoEntrada(novoModo);
+                              showToast(novoModo ? '✏️ Modo Edição Ativo: clique no número para Memo ou no campo para Carimbo.' : '🔒 Calendário Bloqueado: modo somente leitura ativado.');
+                            }}
                             className={`w-11 h-6 rounded-full transition-colors relative flex items-center p-0.5 ${
                               modoEntrada ? 'bg-emerald-600' : 'bg-slate-300'
                             }`}
-                            title={modoEntrada ? 'Modo de Entrada Ativo: toque em um dia para criar memo e turno' : 'Modo Leitura: toque em um dia para ver o memo abaixo'}
+                            title={modoEntrada ? 'Clique para BLOQUEAR edição do calendário' : 'Clique para HABILITAR edição e memos'}
                           >
                             <span
                               className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform ${
@@ -1847,27 +1971,269 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                 </div>
 
                 {/* Botão de Lançamento */}
-{/* COTAÇÃO FOREX: IENE / DÓLAR (USD/JPY) */}
-                <div className="bg-white px-4 py-3 rounded-2xl border border-slate-200/90 shadow-xs flex justify-between items-center text-xs">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl bg-blue-50 text-[#0F2C59] flex items-center justify-center font-bold text-sm shrink-0 border border-blue-100">
-                      $¥
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1.5 font-bold text-slate-800">
-                        <span>USD / JPY:</span>
-                        <span className="text-emerald-600 font-extrabold text-sm tracking-tight">¥ 153.62</span>
+{/* MÓDULO FOREX COMPLETO COM GRÁFICO DINÂMICO E CONVERSOR DE MOEDAS */}
+                {(() => {
+                  const parAtual = DADOS_FOREX[parSelecionado] || DADOS_FOREX.USD_JPY;
+                  const serieAtual = parAtual.series[timeframeSelecionado] || parAtual.series['1Y'];
+                  const pts = serieAtual.pts;
+                  const minV = serieAtual.min;
+                  const maxV = serieAtual.max;
+                  const medV = serieAtual.med;
+                  const span = maxV - minV > 0 ? maxV - minV : 1;
+
+                  // Calcula coordenadas SVG da curva e da área
+                  const svgW = 270;
+                  const svgH = 110;
+                  const padX = 10;
+                  const padY = 10;
+
+                  const coords = pts.map((p, i) => {
+                    const x = padX + (i / (pts.length - 1)) * (svgW - 2 * padX);
+                    const y = svgH - padY - ((p - minV) / span) * (svgH - 2 * padY);
+                    return { x: Math.round(x * 10) / 10, y: Math.round(y * 10) / 10 };
+                  });
+
+                  const linePath = coords.reduce((acc, pt, i) => i === 0 ? `M ${pt.x} ${pt.y}` : `${acc} L ${pt.x} ${pt.y}`, '');
+                  const areaPath = `${linePath} L ${coords[coords.length - 1].x} ${svgH} L ${coords[0].x} ${svgH} Z`;
+                  const pontoAoVivo = coords[coords.length - 1];
+
+                  // Cálculo do Conversor
+                  const valNum = parseFloat(valorConversao) || 0;
+                  const cotacaoEfetiva = isInvertido ? (1 / parAtual.cotacao) : parAtual.cotacao;
+                  const resultadoConvertido = valNum * cotacaoEfetiva;
+                  const moedaOrigem = isInvertido ? parAtual.alvo : parAtual.base;
+                  const moedaDestino = isInvertido ? parAtual.base : parAtual.alvo;
+                  const bandeiraOrigem = isInvertido ? parAtual.bandeiraAlvo : parAtual.bandeiraBase;
+                  const bandeiraDestino = isInvertido ? parAtual.bandeiraBase : parAtual.bandeiraAlvo;
+
+                  return (
+                    <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200/90 shadow-xs space-y-4">
+                      
+                      {/* 1. SELETOR DE MOEDAS COM BANDEIRAS E STATUS ONLINE */}
+                      <div className="flex flex-wrap justify-between items-center gap-2">
+                        <div className="flex items-center gap-1.5">
+                          {/* Moeda Base */}
+                          <div className="bg-slate-100/90 px-3 py-1.5 rounded-2xl flex items-center gap-1.5 border border-slate-200">
+                            <span className="text-base leading-none">{parAtual.bandeiraBase}</span>
+                            <span className="text-xs font-bold text-slate-800">{parAtual.base}</span>
+                          </div>
+
+                          {/* Botão Inverter Par */}
+                          <button
+                            type="button"
+                            onClick={() => setIsInvertido(!isInvertido)}
+                            className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 active:scale-90 text-slate-600 flex items-center justify-center text-sm font-bold transition shadow-2xs border border-slate-200"
+                            title="Inverter Moedas"
+                          >
+                            ⇄
+                          </button>
+
+                          {/* Moeda Alvo */}
+                          <div className="bg-slate-100/90 px-3 py-1.5 rounded-2xl flex items-center gap-1.5 border border-slate-200">
+                            <span className="text-base leading-none">{parAtual.bandeiraAlvo}</span>
+                            <span className="text-xs font-bold text-slate-800">{parAtual.alvo}</span>
+                          </div>
+                        </div>
+
+                        {/* Status Online Pulsante */}
+                        <div className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full border border-emerald-200/60 text-[10px] font-bold">
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                          <span>Ao Vivo • Online</span>
+                        </div>
                       </div>
-                      <p className="text-[10px] text-slate-400">Cotação Comercial • Banco Central</p>
+
+                      {/* Atalhos rápidos para pares populares */}
+                      <div className="flex items-center gap-1 overflow-x-auto pb-0.5 no-scrollbar text-xs">
+                        {[
+                          { id: 'USD_JPY', label: '🇺🇸 USD/JPY' },
+                          { id: 'BRL_JPY', label: '🇧🇷 BRL/JPY' },
+                          { id: 'EUR_JPY', label: '🇪🇺 EUR/JPY' },
+                          { id: 'USD_BRL', label: '🇺🇸 USD/BRL' },
+                          { id: 'BTC_JPY', label: '₿ BTC/JPY' },
+                        ].map(p => {
+                          const isSel = parSelecionado === p.id;
+                          return (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => { setParSelecionado(p.id); setIsInvertido(false); }}
+                              className={`px-2.5 py-1 rounded-xl font-bold whitespace-nowrap transition text-[11px] ${
+                                isSel
+                                  ? 'bg-[#0F2C59] text-white shadow-2xs'
+                                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                              }`}
+                            >
+                              {p.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* 2. COTAÇÃO ATUAL E VARIAÇÃO */}
+                      <div>
+                        <div className="flex items-baseline gap-2">
+                          <h2 className="text-xl sm:text-2xl font-black font-sans text-slate-900 tracking-tight">
+                            1 {parAtual.base} = {parAtual.cotacao >= 1000 ? Math.round(parAtual.cotacao).toLocaleString('ja-JP') : parAtual.cotacao.toFixed(4)} <span className="text-slate-500 text-lg font-medium">{parAtual.alvo}</span>
+                          </h2>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-xs mt-0.5">
+                          <span className="font-bold text-emerald-600 flex items-center gap-0.5">
+                            <span>↑</span>
+                            <span>+{parAtual.variacao}%</span>
+                          </span>
+                          <span className="text-slate-400">•</span>
+                          <span className="text-slate-500 font-medium text-[11px]">16 de set. de 2026</span>
+                        </div>
+                      </div>
+
+                      {/* 3. GRÁFICO DINÂMICO SVG COM PONTA PISCANTE */}
+                      <div className="relative bg-slate-50/50 rounded-2xl p-2.5 border border-slate-100">
+                        <div className="flex items-stretch gap-1">
+                          
+                          {/* Área do Gráfico */}
+                          <div className="flex-1">
+                            <svg viewBox={`0 0 ${svgW} ${svgH}`} className="w-full h-28 sm:h-32 overflow-visible">
+                              <defs>
+                                <linearGradient id="forexAreaGrad" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="#2563EB" stopOpacity="0.22" />
+                                  <stop offset="85%" stopColor="#3B82F6" stopOpacity="0.03" />
+                                  <stop offset="100%" stopColor="#3B82F6" stopOpacity="0.00" />
+                                </linearGradient>
+                              </defs>
+
+                              {/* Linhas de grade suaves */}
+                              <line x1="0" y1={padY} x2={svgW} y2={padY} stroke="#E2E8F0" strokeWidth="0.8" strokeDasharray="3 3" />
+                              <line x1="0" y1={svgH / 2} x2={svgW} y2={svgH / 2} stroke="#E2E8F0" strokeWidth="0.8" strokeDasharray="3 3" />
+                              <line x1="0" y1={svgH - padY} x2={svgW} y2={svgH - padY} stroke="#E2E8F0" strokeWidth="0.8" strokeDasharray="3 3" />
+
+                              {/* Preenchimento em gradiente da área sob a curva */}
+                              <path d={areaPath} fill="url(#forexAreaGrad)" />
+
+                              {/* Linha da Cotação */}
+                              <path
+                                d={linePath}
+                                fill="none"
+                                stroke="#2563EB"
+                                strokeWidth="2.4"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+
+                              {/* PONTA DO GRÁFICO PISCANTE AO VIVO (ONLINE) */}
+                              <g transform={`translate(${pontoAoVivo.x}, ${pontoAoVivo.y})`}>
+                                <circle r="8" fill="#3B82F6" className="animate-ping" opacity="0.65" />
+                                <circle r="4.5" fill="#2563EB" stroke="#FFFFFF" strokeWidth="2" />
+                              </g>
+                            </svg>
+
+                            {/* Rótulos do Eixo X (Datas) */}
+                            <div className="flex justify-between items-center text-[9px] font-bold text-slate-400 px-2 pt-1 border-t border-slate-200/60 mt-1">
+                              {serieAtual.datas.map((d, i) => (
+                                <span key={i}>{d}</span>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Rótulos do Eixo Y (Preços na margem direita como no print) */}
+                          <div className="flex flex-col justify-between items-end text-[9px] font-mono font-bold text-slate-400 pl-1 py-1 shrink-0">
+                            <span>{maxV >= 1000 ? Math.round(maxV).toLocaleString('ja-JP') : maxV.toFixed(2)}</span>
+                            <span>{medV >= 1000 ? Math.round(medV).toLocaleString('ja-JP') : medV.toFixed(2)}</span>
+                            <span>{minV >= 1000 ? Math.round(minV).toLocaleString('ja-JP') : minV.toFixed(2)}</span>
+                          </div>
+
+                        </div>
+                      </div>
+
+                      {/* 4. SELETOR DE TIMEFRAME (1D, 1W, 1M, 3M, 1Y, 5Y) */}
+                      <div className="flex items-center justify-between gap-1">
+                        {['1D', '1W', '1M', '3M', '1Y', '5Y'].map(tf => {
+                          const isSel = timeframeSelecionado === tf;
+                          return (
+                            <button
+                              key={tf}
+                              type="button"
+                              onClick={() => setTimeframeSelecionado(tf)}
+                              className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition active:scale-95 text-center ${
+                                isSel
+                                  ? 'bg-[#0F2C59] text-white shadow-xs'
+                                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                              }`}
+                            >
+                              {tf}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* 5. CALCULADORA CONVERSORA DE MOEDAS FOREX */}
+                      <div className="pt-3 border-t border-slate-100 space-y-2.5">
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-[#0F2C59] flex items-center gap-1">
+                            <span>🧮</span>
+                            <span>Calculadora Conversora Forex</span>
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-medium">Câmbio Comercial</span>
+                        </div>
+
+                        {/* Painel Interativo de Conversão */}
+                        <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2.5">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-center">
+                            
+                            {/* Valor Origem */}
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-400 mb-0.5 uppercase">
+                                Você envia ({moedaOrigem}):
+                              </label>
+                              <div className="relative flex items-center">
+                                <span className="absolute left-2.5 text-base">{bandeiraOrigem}</span>
+                                <input
+                                  type="number"
+                                  value={valorConversao}
+                                  onChange={(e) => setValorConversao(e.target.value)}
+                                  placeholder="0"
+                                  className="w-full pl-9 pr-3 py-2 bg-white border border-slate-300 focus:border-[#0F2C59] rounded-xl text-xs font-bold outline-none text-slate-900"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Valor Destino Convertido */}
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-400 mb-0.5 uppercase">
+                                Você recebe ({moedaDestino}):
+                              </label>
+                              <div className="flex items-center px-3 py-2 bg-emerald-50/80 border border-emerald-200 rounded-xl">
+                                <span className="text-base mr-2">{bandeiraDestino}</span>
+                                <span className="font-extrabold text-sm text-emerald-800 tracking-tight">
+                                  {parAtual.simboloAlvo === '¥' && !isInvertido
+                                    ? `¥ ${Math.round(resultadoConvertido).toLocaleString('ja-JP')}`
+                                    : `${resultadoConvertido >= 100 ? resultadoConvertido.toFixed(2) : resultadoConvertido.toFixed(4)} ${moedaDestino}`
+                                  }
+                                </span>
+                              </div>
+                            </div>
+
+                          </div>
+
+                          {/* Botões Rápidos de Valor */}
+                          <div className="flex flex-wrap items-center gap-1 pt-1">
+                            <span className="text-[10px] text-slate-400 font-bold mr-1">Rápido:</span>
+                            {['100', '500', '1000', '10000', '50000'].map(val => (
+                              <button
+                                key={val}
+                                type="button"
+                                onClick={() => setValorConversao(val)}
+                                className="px-2 py-0.5 bg-white hover:bg-slate-200 active:scale-95 border border-slate-200 rounded-lg text-[10px] font-semibold text-slate-700 transition shadow-2xs"
+                              >
+                                +{parseInt(val) >= 1000 ? `${parseInt(val)/1000}k` : val}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+
                     </div>
-                  </div>
-                  <div className="text-right">
-                    <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-100">
-                      +0.05%
-                    </span>
-                    <p className="text-[10px] text-slate-400 mt-0.5">1 USD = ¥ 153,62</p>
-                  </div>
-                </div>
+                  );
+                })()}
 
               </div>
             )}
