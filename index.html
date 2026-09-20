@@ -877,7 +877,8 @@
       const [carimboAtivo, setCarimboAtivo] = useState(null);
 
       // MODO DE ENTRADA (入力モード), MEMOS E CONFIGURAÇÕES (設定)
-      const [modoEntrada, setModoEntrada] = useState(true);
+      // O calendário começa protegido; o usuário ativa o modo de edição pelo botão.
+      const [modoEntrada, setModoEntrada] = useState(false);
       const [diaSelecionadoMemo, setDiaSelecionadoMemo] = useState(16);
       const [isModalMemoOpen, setIsModalMemoOpen] = useState(false);
       const [isModalConfigTurnosOpen, setIsModalConfigTurnosOpen] = useState(false);
