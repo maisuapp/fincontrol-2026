@@ -113,6 +113,14 @@
       display: inline-block;
       animation: happyPulse 2s infinite ease-in-out;
     }
+    @keyframes forexLinePulse {
+      0%, 100% { opacity: 0.78; filter: drop-shadow(0 0 0 rgba(37, 99, 235, 0)); }
+      50% { opacity: 1; filter: drop-shadow(0 0 5px rgba(37, 99, 235, 0.45)); }
+    }
+    .forex-line-live {
+      animation: forexLinePulse 1.8s ease-in-out infinite;
+      transition: opacity 0.35s ease;
+    }
   </style>
   <!-- Captura de Erros para nunca deixar a tela em branco silenciosa -->
   <script>
@@ -550,51 +558,165 @@
           }
         }
       };
+      const inicializarSerieForexAoVivo = (valor) => {
+        const base = Number(valor) || 0;
+        const margem = Math.max(Math.abs(base) * 0.00015, 0.0001);
+        return {
+          pts: Array.from({ length: 60 }, () => base),
+          datas: ['-60s', '-45s', '-30s', '-15s', 'Agora'],
+          max: base + margem,
+          med: base,
+          min: base - margem
+        };
+      };
+
+      Object.keys(DADOS_FOREX_INICIAIS).forEach(parKey => {
+        const par = DADOS_FOREX_INICIAIS[parKey];
+        if (!par.series.LIVE) par.series.LIVE = inicializarSerieForexAoVivo(par.cotacao);
+      });
+
       const [dadosForex, setDadosForex] = useState(DADOS_FOREX_INICIAIS);
       const [isCarregandoForex, setIsCarregandoForex] = useState(false);
+      const forexRequestRef = useRef(false);
+
+      const clonarDadosForex = (estadoAnterior) => {
+        const copia = {};
+        Object.keys(estadoAnterior).forEach(parKey => {
+          copia[parKey] = {
+            ...estadoAnterior[parKey],
+            series: {}
+          };
+          Object.keys(estadoAnterior[parKey].series || {}).forEach(tf => {
+            const serie = estadoAnterior[parKey].series[tf];
+            copia[parKey].series[tf] = {
+              ...serie,
+              pts: Array.isArray(serie.pts) ? [...serie.pts] : [],
+              datas: Array.isArray(serie.datas) ? [...serie.datas] : []
+            };
+          });
+        });
+        return copia;
+      };
+
+      const atualizarSerieForexAoVivo = (serieAnterior, valor) => {
+        const pontos = [...(serieAnterior?.pts || []), valor].slice(-60);
+        const brutoMin = Math.min(...pontos);
+        const brutoMax = Math.max(...pontos);
+        const margem = Math.max((brutoMax - brutoMin) * 0.2, Math.abs(valor) * 0.00015, 0.0001);
+        return {
+          ...(serieAnterior || {}),
+          pts: pontos,
+          datas: ['-60s', '-45s', '-30s', '-15s', new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })],
+          max: brutoMax + margem,
+          med: (brutoMin + brutoMax) / 2,
+          min: brutoMin - margem
+        };
+      };
+
+      const aplicarCotacoesForex = (estadoAnterior, cotacoes) => {
+        const novosDados = clonarDadosForex(estadoAnterior);
+        const agora = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+        Object.keys(cotacoes).forEach(parKey => {
+          const item = cotacoes[parKey];
+          const par = novosDados[parKey];
+          const valor = Number(item?.valor);
+          if (!par || !Number.isFinite(valor)) return;
+
+          par.cotacao = valor;
+          if (Number.isFinite(Number(item.variacao))) {
+            par.variacao = Number(item.variacao);
+            par.subindo = par.variacao >= 0;
+          }
+          par.dataTexto = agora;
+
+          Object.keys(par.series || {}).forEach(tf => {
+            const serie = par.series[tf];
+            if (tf === 'LIVE') {
+              par.series.LIVE = atualizarSerieForexAoVivo(serie, valor);
+              return;
+            }
+
+            const pontos = Array.isArray(serie.pts) ? [...serie.pts] : [valor];
+            if (pontos.length) pontos[pontos.length - 1] = valor;
+            par.series[tf] = {
+              ...serie,
+              pts: pontos,
+              max: Math.max(Number(serie.max) || valor, valor),
+              min: Math.min(Number(serie.min) || valor, valor)
+            };
+          });
+        });
+
+        return novosDados;
+      };
 
       const buscarCotacoesForexAoVivo = async () => {
+        if (forexRequestRef.current) return;
+        forexRequestRef.current = true;
         setIsCarregandoForex(true);
+
+        let timeoutId = null;
         try {
-          const res = await fetch('https://economia.awesomeapi.com.br/json/last/USD-JPY,BRL-JPY,EUR-JPY,USD-BRL,BTC-JPY');
+          const controller = new AbortController();
+          timeoutId = setTimeout(() => controller.abort(), 10000);
+          const res = await fetch('https://economia.awesomeapi.com.br/json/last/USD-JPY,BRL-JPY,EUR-JPY,USD-BRL,BTC-JPY', {
+            cache: 'no-store',
+            signal: controller.signal
+          });
+          clearTimeout(timeoutId);
+          if (!res.ok) throw new Error('Falha HTTP ' + res.status);
+
           const data = await res.json();
-          
-          const novosDados = { ...dadosForex };
           const mapeamento = { USD_JPY: 'USDJPY', BRL_JPY: 'BRLJPY', EUR_JPY: 'EURJPY', USD_BRL: 'USDBRL', BTC_JPY: 'BTCJPY' };
-          
+          const cotacoes = {};
+
           Object.keys(mapeamento).forEach(parKey => {
             const apiData = data[mapeamento[parKey]];
-            if (apiData) {
-              const valor = parseFloat(apiData.bid);
-              novosDados[parKey].cotacao = valor;
-              novosDados[parKey].variacao = parseFloat(apiData.pctChange);
-              novosDados[parKey].subindo = parseFloat(apiData.pctChange) >= 0;
-              Object.keys(novosDados[parKey].series).forEach(tf => {
-                const serie = novosDados[parKey].series[tf];
-                serie.pts[serie.pts.length - 1] = valor;
-              });
-            }
+            if (!apiData) return;
+            cotacoes[parKey] = {
+              valor: parseFloat(apiData.bid),
+              variacao: parseFloat(apiData.pctChange)
+            };
           });
-          setDadosForex(novosDados);
+
+          if (Object.keys(cotacoes).length) {
+            setDadosForex(estadoAnterior => aplicarCotacoesForex(estadoAnterior, cotacoes));
+          }
         } catch (e) {
-          console.warn('AwesomeAPI offline, tentando fallback...');
+          if (timeoutId) clearTimeout(timeoutId);
+          console.warn('AwesomeAPI offline, tentando fallback...', e);
+
           try {
-            const res = await fetch('https://open.er-api.com/v6/latest/USD');
+            const res = await fetch('https://open.er-api.com/v6/latest/USD', { cache: 'no-store' });
             const data = await res.json();
             if (data && data.rates) {
-              const novosDados = { ...dadosForex };
-              novosDados.USD_JPY.cotacao = data.rates.JPY;
-              setDadosForex(novosDados);
+              const cotacoes = {};
+              if (Number.isFinite(Number(data.rates.JPY))) {
+                cotacoes.USD_JPY = { valor: Number(data.rates.JPY), variacao: 0 };
+              }
+              if (Number.isFinite(Number(data.rates.BRL))) {
+                cotacoes.USD_BRL = { valor: Number(data.rates.BRL), variacao: 0 };
+              }
+              if (Object.keys(cotacoes).length) {
+                setDadosForex(estadoAnterior => aplicarCotacoesForex(estadoAnterior, cotacoes));
+              }
             }
-          } catch(err) { console.error('Falha total no Forex', err); }
-        } finally { setIsCarregandoForex(false); }
+          } catch (err) {
+            console.error('Falha total no Forex', err);
+          }
+        } finally {
+          forexRequestRef.current = false;
+          setIsCarregandoForex(false);
+        }
       };
 
       useEffect(() => {
         buscarCotacoesForexAoVivo();
-        const interval = setInterval(buscarCotacoesForexAoVivo, 60000);
+        const intervalo = timeframeSelecionado === 'LIVE' ? 5000 : 60000;
+        const interval = setInterval(buscarCotacoesForexAoVivo, intervalo);
         return () => clearInterval(interval);
-      }, []);
+      }, [timeframeSelecionado]);
 
       const [parSelecionado, setParSelecionado] = useState('USD_JPY');
       const [timeframeSelecionado, setTimeframeSelecionado] = useState('1Y');
@@ -2183,6 +2305,7 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                                 strokeWidth="2.4"
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
+                                className={timeframeSelecionado === 'LIVE' ? 'forex-line-live' : undefined}
                               />
                               <g transform={`translate(${pontoAoVivo.x}, ${pontoAoVivo.y})`}>
                                 <circle r="8" fill="#3B82F6" className="animate-ping" opacity="0.65" />
@@ -2204,7 +2327,7 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                       </div>
                       {/* 4. SELETOR DE TIMEFRAME */}
                       <div className="flex items-center justify-between gap-1">
-                        {['1D', '1W', '1M', '3M', '1Y', '5Y'].map(tf => {
+                        {['LIVE', '1D', '1W', '1M', '3M', '1Y', '5Y'].map(tf => {
                           const isSel = timeframeSelecionado === tf;
                           return (
                             <button
@@ -2217,10 +2340,14 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                               }`}
                             >
-                              {tf}
+                              {tf === 'LIVE' ? 'Ao vivo' : tf}
                             </button>
                           );
                         })}
+                      </div>
+                      <div className="flex items-center justify-between text-[10px] text-slate-400 font-medium px-1">
+                        <span>{timeframeSelecionado === 'LIVE' ? '● Atualização automática a cada 5 segundos' : 'Atualização automática a cada 60 segundos'}</span>
+                        <span>{timeframeSelecionado === 'LIVE' ? 'Janela móvel de 60 amostras' : 'Cotação de referência'}</span>
                       </div>
                       {/* 5. CALCULADORA CONVERSORA FOREX */}
                       <div className="pt-3 border-t border-slate-100 space-y-2.5">
