@@ -1719,6 +1719,37 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                 </div>
 
 
+                {/* Maiores Categorias Dinâmicas em Tempo Real */}
+                <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-3">
+                  <div className="flex justify-between items-center">
+                    <h3 className="text-sm font-serif font-bold text-slate-800">Maiores Categorias ({anoCalendario})</h3>
+                    <span className="text-xs">🏷️</span>
+                  </div>
+                  <div className="space-y-2.5 text-xs font-medium">
+                    {topCategoriasDinamicas.map(([catNome, valorCat], idx) => {
+                      const perc = despesasTotais > 0 ? (valorCat / despesasTotais) * 100 : 0;
+                      return (
+                        <div key={catNome}>
+                          <div className="flex justify-between items-center mb-1">
+                            <span className="text-slate-700 truncate max-w-[200px]">
+                              {idx + 1}. {catNome}
+                            </span>
+                            <span className="font-bold text-slate-900">¥ {Math.round(valorCat).toLocaleString('ja-JP')}</span>
+                          </div>
+                          <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full transition-all duration-500 ${
+                                idx === 0 ? 'bg-[#0F2C59]' : 'bg-slate-400'
+                              }`}
+                              style={{ width: `${Math.min(perc, 100)}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 {/* CALENDÁRIO DINÂMICO DE ESCALA (《My勤務カレンダーV2》 - FinControl Edition) */}
                 {(() => {
                   const primeiroDiaSemana = new Date(anoCalendario, mesCalendario, 1).getDay();
@@ -2130,37 +2161,6 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                     </div>
                   );
                 })()}
-
-                {/* Maiores Categorias Dinâmicas em Tempo Real */}
-                <div className="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs space-y-3">
-                  <div className="flex justify-between items-center">
-                    <h3 className="text-sm font-serif font-bold text-slate-800">Maiores Categorias ({anoCalendario})</h3>
-                    <span className="text-xs">🏷️</span>
-                  </div>
-                  <div className="space-y-2.5 text-xs font-medium">
-                    {topCategoriasDinamicas.map(([catNome, valorCat], idx) => {
-                      const perc = despesasTotais > 0 ? (valorCat / despesasTotais) * 100 : 0;
-                      return (
-                        <div key={catNome}>
-                          <div className="flex justify-between items-center mb-1">
-                            <span className="text-slate-700 truncate max-w-[200px]">
-                              {idx + 1}. {catNome}
-                            </span>
-                            <span className="font-bold text-slate-900">¥ {Math.round(valorCat).toLocaleString('ja-JP')}</span>
-                          </div>
-                          <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full transition-all duration-500 ${
-                                idx === 0 ? 'bg-[#0F2C59]' : 'bg-slate-400'
-                              }`}
-                              style={{ width: `${Math.min(perc, 100)}%` }}
-                            ></div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
 
                 {/* MÓDULO FOREX COMPLETO COM GRÁFICO DINÂMICO E CONVERSOR DE MOEDAS */}
                 {(() => {
