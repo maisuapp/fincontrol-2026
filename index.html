@@ -632,8 +632,11 @@
             ? ((valor - cotacaoAnterior) / cotacaoAnterior) * 100
             : 0;
           par.cotacao = valor;
-          par.variacao = variacaoReal;
-          par.subindo = variacaoReal >= 0;
+          par.variacaoAoVivo = variacaoReal;
+          if (Number.isFinite(Number(item.variacaoDia))) {
+            par.variacao = Number(item.variacaoDia);
+            par.subindo = par.variacao >= 0;
+          }
           par.dataTexto = agora;
 
           Object.keys(par.series || {}).forEach(tf => {
@@ -686,7 +689,10 @@
             const valor = parseFloat(apiData.bid);
             if (!Number.isFinite(valor) || valor <= 0) return;
             cotacoes[parKey] = {
-              valor
+              valor,
+              variacaoDia: Number.isFinite(parseFloat(apiData.pctChange))
+                ? parseFloat(apiData.pctChange)
+                : null
             };
           });
           if (cotacoes.BTC_USD && cotacoes.USD_JPY) {
@@ -2326,12 +2332,18 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                         </div>
                         <div className="flex items-center gap-1.5 text-xs mt-0.5">
                           {parAtual.dataTexto ? (
-                            <span className={`font-bold flex items-center gap-0.5 ${parAtual.subindo ? 'text-emerald-600' : 'text-rose-600'}`}>
+                            <span className={`font-bold flex items-center gap-0.5 ${parAtual.subindo ? 'text-emerald-600' : 'text-rose-600'}`} title="Variação percentual do dia informada pela API">
                               <span>{parAtual.subindo ? '↑' : '↓'}</span>
-                              <span>{parAtual.variacao >= 0 ? `+${parAtual.variacao.toFixed(2)}%` : `${parAtual.variacao.toFixed(2)}%`}</span>
+                              <span>Hoje {parAtual.variacao >= 0 ? `+${parAtual.variacao.toFixed(2)}%` : `${parAtual.variacao.toFixed(2)}%`}</span>
                             </span>
                           ) : (
                             <span className="font-bold text-slate-400">— aguardando variação real</span>
+                          )}
+                          <span className="text-slate-400">•</span>
+                          {parAtual.dataTexto && (
+                            <span className={`font-bold ${parAtual.variacaoAoVivo >= 0 ? 'text-emerald-600' : 'text-rose-600'}`} title="Variação desde a última cotação confirmada">
+                              Ao vivo {parAtual.variacaoAoVivo >= 0 ? '+' : ''}{Number(parAtual.variacaoAoVivo || 0).toFixed(4)}%
+                            </span>
                           )}
                           <span className="text-slate-400">•</span>
                           <span className="text-slate-500 font-medium text-[11px]" title={erroForex || undefined}>
