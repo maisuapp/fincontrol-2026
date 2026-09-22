@@ -577,6 +577,9 @@
 
       const [dadosForex, setDadosForex] = useState(DADOS_FOREX_INICIAIS);
       const [isCarregandoForex, setIsCarregandoForex] = useState(false);
+      const [statusForex, setStatusForex] = useState('no-data');
+      const [erroForex, setErroForex] = useState('');
+      const [ultimaAtualizacaoForex, setUltimaAtualizacaoForex] = useState(null);
       const forexRequestRef = useRef(false);
 
       const clonarDadosForex = (estadoAnterior) => {
@@ -623,11 +626,14 @@
           const valor = Number(item?.valor);
           if (!par || !Number.isFinite(valor)) return;
 
+          const cotacaoAnterior = Number(par.cotacao);
+          const temAmostraAnterior = par.dataTexto && Number.isFinite(cotacaoAnterior) && cotacaoAnterior > 0;
+          const variacaoReal = temAmostraAnterior
+            ? ((valor - cotacaoAnterior) / cotacaoAnterior) * 100
+            : 0;
           par.cotacao = valor;
-          if (Number.isFinite(Number(item.variacao))) {
-            par.variacao = Number(item.variacao);
-            par.subindo = par.variacao >= 0;
-          }
+          par.variacao = variacaoReal;
+          par.subindo = variacaoReal >= 0;
           par.dataTexto = agora;
 
           Object.keys(par.series || {}).forEach(tf => {
@@ -655,12 +661,15 @@
         if (forexRequestRef.current) return;
         forexRequestRef.current = true;
         setIsCarregandoForex(true);
+        setStatusForex('updating');
+        setErroForex('');
 
         let timeoutId = null;
+        let ultimaFalha = null;
         try {
           const controller = new AbortController();
           timeoutId = setTimeout(() => controller.abort(), 10000);
-          const res = await fetch('https://economia.awesomeapi.com.br/json/last/USD-JPY,BRL-JPY,EUR-JPY,USD-BRL,BTC-JPY', {
+          const res = await fetch('https://economia.awesomeapi.com.br/json/last/USD-JPY,BRL-JPY,EUR-JPY,USD-BRL,BTC-USD', {
             cache: 'no-store',
             signal: controller.signal
           });
@@ -668,42 +677,63 @@
           if (!res.ok) throw new Error('Falha HTTP ' + res.status);
 
           const data = await res.json();
-          const mapeamento = { USD_JPY: 'USDJPY', BRL_JPY: 'BRLJPY', EUR_JPY: 'EURJPY', USD_BRL: 'USDBRL', BTC_JPY: 'BTCJPY' };
+          const mapeamento = { USD_JPY: 'USDJPY', BRL_JPY: 'BRLJPY', EUR_JPY: 'EURJPY', USD_BRL: 'USDBRL', BTC_USD: 'BTCUSD' };
           const cotacoes = {};
 
           Object.keys(mapeamento).forEach(parKey => {
             const apiData = data[mapeamento[parKey]];
             if (!apiData) return;
+            const valor = parseFloat(apiData.bid);
+            if (!Number.isFinite(valor) || valor <= 0) return;
             cotacoes[parKey] = {
-              valor: parseFloat(apiData.bid),
-              variacao: parseFloat(apiData.pctChange)
+              valor
             };
           });
-
-          if (Object.keys(cotacoes).length) {
-            setDadosForex(estadoAnterior => aplicarCotacoesForex(estadoAnterior, cotacoes));
+          if (cotacoes.BTC_USD && cotacoes.USD_JPY) {
+            cotacoes.BTC_JPY = { valor: cotacoes.BTC_USD.valor * cotacoes.USD_JPY.valor };
           }
+          delete cotacoes.BTC_USD;
+
+          if (!Object.keys(cotacoes).length) throw new Error('A API não retornou cotações válidas.');
+          setDadosForex(estadoAnterior => aplicarCotacoesForex(estadoAnterior, cotacoes));
+          setUltimaAtualizacaoForex(Date.now());
+          setStatusForex('live');
         } catch (e) {
+          ultimaFalha = e;
           if (timeoutId) clearTimeout(timeoutId);
           console.warn('AwesomeAPI offline, tentando fallback...', e);
 
           try {
-            const res = await fetch('https://open.er-api.com/v6/latest/USD', { cache: 'no-store' });
+            const fallbackController = new AbortController();
+            const fallbackTimeoutId = setTimeout(() => fallbackController.abort(), 10000);
+            let res;
+            try {
+              res = await fetch('https://open.er-api.com/v6/latest/USD', {
+                cache: 'no-store',
+                signal: fallbackController.signal
+              });
+            } finally {
+              clearTimeout(fallbackTimeoutId);
+            }
+            if (!res.ok) throw new Error('Falha HTTP no fallback: ' + res.status);
             const data = await res.json();
-            if (data && data.rates) {
+            if (data && data.rates && Number.isFinite(Number(data.rates.JPY)) && Number.isFinite(Number(data.rates.BRL))) {
               const cotacoes = {};
-              if (Number.isFinite(Number(data.rates.JPY))) {
-                cotacoes.USD_JPY = { valor: Number(data.rates.JPY), variacao: 0 };
-              }
-              if (Number.isFinite(Number(data.rates.BRL))) {
-                cotacoes.USD_BRL = { valor: Number(data.rates.BRL), variacao: 0 };
-              }
-              if (Object.keys(cotacoes).length) {
-                setDadosForex(estadoAnterior => aplicarCotacoesForex(estadoAnterior, cotacoes));
-              }
+              cotacoes.USD_JPY = { valor: Number(data.rates.JPY) };
+              cotacoes.USD_BRL = { valor: Number(data.rates.BRL) };
+              setDadosForex(estadoAnterior => aplicarCotacoesForex(estadoAnterior, cotacoes));
+              setUltimaAtualizacaoForex(Date.now());
+              setStatusForex('live');
+            } else {
+              throw new Error('O fallback não retornou cotações válidas.');
             }
           } catch (err) {
+            const mensagem = err?.name === 'AbortError'
+              ? 'Tempo limite excedido ao consultar as cotações.'
+              : (err?.message || ultimaFalha?.message || 'Falha ao consultar as cotações.');
             console.error('Falha total no Forex', err);
+            setStatusForex(ultimaAtualizacaoForex ? 'stale' : 'error');
+            setErroForex(mensagem);
           }
         } finally {
           forexRequestRef.current = false;
@@ -2220,16 +2250,38 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                           <button
                             type="button"
                             onClick={buscarCotacoesForexAoVivo}
-                            className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 active:scale-95 rounded-xl text-[11px] font-bold text-slate-700 flex items-center gap-1 border border-slate-200 transition"
-                            title="Atualizar cotações ao vivo"
+                            disabled={isCarregandoForex}
+                            aria-busy={isCarregandoForex}
+                            className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 disabled:opacity-60 disabled:cursor-wait active:scale-95 rounded-xl text-[11px] font-bold text-slate-700 flex items-center gap-1 border border-slate-200 transition"
+                            title={isCarregandoForex ? 'Atualização em andamento' : 'Atualizar cotações ao vivo'}
                           >
                             <span className={isCarregandoForex ? "animate-spin" : ""}>🔄</span>
-                            <span>{isCarregandoForex ? "Buscando..." : "Atualizar"}</span>
+                            <span>{isCarregandoForex ? "Atualizando..." : "Atualizar"}</span>
                           </button>
-                          {isMercadoAberto ? (
+                          {statusForex === 'updating' ? (
+                            <span role="status" className="flex items-center gap-1.5 bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full border border-blue-200/60 text-[10px] font-bold">
+                              <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></span>
+                              <span>Atualizando dados...</span>
+                            </span>
+                          ) : statusForex === 'error' ? (
+                            <span role="alert" className="flex items-center gap-1.5 bg-rose-50 text-rose-700 px-2.5 py-1 rounded-full border border-rose-200 text-[10px] font-bold" title={erroForex}>
+                              <span>⚠️</span>
+                              <span>Erro na atualização</span>
+                            </span>
+                          ) : statusForex === 'stale' ? (
+                            <span role="status" className="flex items-center gap-1.5 bg-amber-50 text-amber-800 px-2.5 py-1 rounded-full border border-amber-200 text-[10px] font-bold" title={erroForex}>
+                              <span>⏸️</span>
+                              <span>Dados desatualizados</span>
+                            </span>
+                          ) : statusForex === 'no-data' ? (
+                            <span role="status" className="flex items-center gap-1.5 bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full border border-slate-200 text-[10px] font-bold">
+                              <span>⌛</span>
+                              <span>Aguardando dados</span>
+                            </span>
+                          ) : isMercadoAberto ? (
                             <span className="flex items-center gap-1.5 bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full border border-emerald-200/60 text-[10px] font-bold">
                               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                              <span>Ao Vivo • Online</span>
+                              <span>Ao Vivo • Online{ultimaAtualizacaoForex ? ` • ${new Date(ultimaAtualizacaoForex).toLocaleTimeString('pt-BR')}` : ''}</span>
                             </span>
                           ) : (
                             <span className="flex items-center gap-1.5 bg-amber-50 text-amber-800 px-2.5 py-1 rounded-full border border-amber-200 text-[10px] font-bold">
@@ -2273,13 +2325,17 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                           </h2>
                         </div>
                         <div className="flex items-center gap-1.5 text-xs mt-0.5">
-                          <span className={`font-bold flex items-center gap-0.5 ${parAtual.subindo ? 'text-emerald-600' : 'text-rose-600'}`}>
-                            <span>{parAtual.subindo ? '↑' : '↓'}</span>
-                            <span>{parAtual.variacao >= 0 ? `+${parAtual.variacao.toFixed(2)}%` : `${parAtual.variacao.toFixed(2)}%`}</span>
-                          </span>
+                          {parAtual.dataTexto ? (
+                            <span className={`font-bold flex items-center gap-0.5 ${parAtual.subindo ? 'text-emerald-600' : 'text-rose-600'}`}>
+                              <span>{parAtual.subindo ? '↑' : '↓'}</span>
+                              <span>{parAtual.variacao >= 0 ? `+${parAtual.variacao.toFixed(2)}%` : `${parAtual.variacao.toFixed(2)}%`}</span>
+                            </span>
+                          ) : (
+                            <span className="font-bold text-slate-400">— aguardando variação real</span>
+                          )}
                           <span className="text-slate-400">•</span>
-                          <span className="text-slate-500 font-medium text-[11px]">
-                            {parAtual.dataTexto || new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          <span className="text-slate-500 font-medium text-[11px]" title={erroForex || undefined}>
+                            {parAtual.dataTexto || 'Aguardando cotação real'}
                           </span>
                         </div>
                       </div>
