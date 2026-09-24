@@ -250,6 +250,35 @@
       return limpo.charAt(0).toUpperCase() + limpo.slice(1);
     }
 
+    const PERFIS_PADRAO = [
+      { id: 'principal', nome: 'Meu perfil', email: 'voce@fincontrol.local', papel: 'owner', cor: '#0F2C59' },
+      { id: 'conjuge', nome: 'Cônjuge', email: 'conjuge@fincontrol.local', papel: 'editor', cor: '#059669' }
+    ];
+
+    function chavePerfil(perfilId, recurso) {
+      return `fc26_profile_${perfilId}_${recurso}`;
+    }
+
+    function lerJsonSeguro(chave, fallback) {
+      try {
+        const valor = localStorage.getItem(chave);
+        return valor ? JSON.parse(valor) : fallback;
+      } catch (e) {
+        console.warn(`Não foi possível ler ${chave}:`, e);
+        return fallback;
+      }
+    }
+
+    function salvarJsonSeguro(chave, valor) {
+      try {
+        localStorage.setItem(chave, JSON.stringify(valor));
+        return true;
+      } catch (e) {
+        console.warn(`Não foi possível salvar ${chave}:`, e);
+        return false;
+      }
+    }
+
     const CATEGORIAS_DESPESA = [
       { id: 'Supermercado & Feira', label: 'Supermercado & Feira', icon: '🛒' },
       { id: 'Alimentação Fora & Lanches', label: 'Restaurante/Lanches', icon: '🍱' },
@@ -322,6 +351,76 @@
 
     function App() {
       const [currentTab, setCurrentTab] = useState('dashboard');
+      const [perfis, setPerfis] = useState(() => {
+        const salvos = lerJsonSeguro('fc26_perfis', PERFIS_PADRAO);
+        return Array.isArray(salvos) && salvos.length ? salvos : PERFIS_PADRAO;
+      });
+      const [perfilAtivoId, setPerfilAtivoId] = useState(() => localStorage.getItem('fc26_perfil_ativo') || 'principal');
+      const [conviteCompartilhamento, setConviteCompartilhamento] = useState(() => localStorage.getItem('fc26_convite_casal') || '');
+      const [adminAtivo, setAdminAtivo] = useState(() => localStorage.getItem('fc26_admin_ativo') === 'true');
+      const perfilAtivo = perfis.find(p => p.id === perfilAtivoId) || perfis[0] || PERFIS_PADRAO[0];
+      const perfilStorageKey = (recurso) => chavePerfil(perfilAtivo.id, recurso);
+      const [eventoAnalytics, setEventoAnalytics] = useState(() => lerJsonSeguro('fc26_analytics_eventos', []));
+
+      const registrarAnalytics = (evento, detalhes = {}) => {
+        const novoEvento = {
+          id: `evt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+          evento,
+          perfilId: perfilAtivo.id,
+          data: new Date().toISOString(),
+          detalhes
+        };
+        setEventoAnalytics(anterior => {
+          const atualizados = [...anterior, novoEvento].slice(-500);
+          salvarJsonSeguro('fc26_analytics_eventos', atualizados);
+          return atualizados;
+        });
+      };
+
+      const trocarPerfilFinanceiro = (novoPerfilId) => {
+        if (!perfis.some(p => p.id === novoPerfilId)) return;
+        setPerfilAtivoId(novoPerfilId);
+        localStorage.setItem('fc26_perfil_ativo', novoPerfilId);
+        registrarAnalytics('profile_switched', { to: novoPerfilId });
+        setCurrentTab('dashboard');
+      };
+
+      const criarPerfil = (nome, email) => {
+        const id = `perfil-${Date.now()}`;
+        const novoPerfil = { id, nome: nome.trim(), email: email.trim(), papel: 'editor', cor: '#7C3AED' };
+        const atualizados = [...perfis, novoPerfil];
+        setPerfis(atualizados);
+        salvarJsonSeguro('fc26_perfis', atualizados);
+        trocarPerfilFinanceiro(id);
+      };
+
+      const atualizarPermissaoPerfil = (id, papel) => {
+        const atualizados = perfis.map(p => p.id === id ? { ...p, papel } : p);
+        setPerfis(atualizados);
+        salvarJsonSeguro('fc26_perfis', atualizados);
+        registrarAnalytics('permission_updated', { profileId: id, papel });
+      };
+
+      const gerarConviteCasal = () => {
+        const convite = `FC26-${Math.random().toString(36).slice(2, 8).toUpperCase()}-${Date.now().toString(36).slice(-4).toUpperCase()}`;
+        setConviteCompartilhamento(convite);
+        localStorage.setItem('fc26_convite_casal', convite);
+        registrarAnalytics('couple_share_created');
+        return convite;
+      };
+
+      const abrirAba = (aba) => {
+        setCurrentTab(aba);
+        registrarAnalytics('tab_viewed', { tab: aba });
+      };
+
+      useEffect(() => {
+        localStorage.setItem('fc26_admin_ativo', String(adminAtivo));
+      }, [adminAtivo]);
+
+      useEffect(() => {
+        registrarAnalytics('app_opened');
+      }, []);
       
       // Frases Estóicas focadas em Prosperidade, Razão e Disciplina Financeira
       const FRASES_ESTOICAS = [
@@ -350,7 +449,7 @@
       };
       const [transactions, setTransactions] = useState(() => {
         try {
-          const local = localStorage.getItem('fc26_transactions');
+          const local = localStorage.getItem(chavePerfil(perfilAtivoId, 'transactions')) || localStorage.getItem('fc26_transactions');
           if (local) {
             const parsed = JSON.parse(local);
             // Aplica a padronização em lançamentos antigos salvos
@@ -433,7 +532,7 @@
                   mostrarAlertaAtualizacao('Lançamentos Financeiros');
                 }
                 setTransactions(unicos);
-                localStorage.setItem('fc26_transactions', JSON.stringify(unicos));
+                localStorage.setItem(perfilStorageKey('transactions'), JSON.stringify(unicos));
                 if (!ehPolling) {
                   showToast(`✓ Sincronizado com o Drive: ${unicos.length} lançamentos limpos!`);
                 }
@@ -768,7 +867,7 @@
 
       const [listaReservas, setListaReservas] = useState(() => {
         try {
-          const local = localStorage.getItem('fc26_lista_reservas');
+          const local = localStorage.getItem(chavePerfil(perfilAtivoId, 'reservas')) || localStorage.getItem('fc26_lista_reservas');
           return local ? JSON.parse(local) : RESERVAS_PADRAO;
         } catch(e) {
           return RESERVAS_PADRAO;
@@ -776,6 +875,14 @@
       });
 
       const [isModalNovaReservaOpen, setIsModalNovaReservaOpen] = useState(false);
+
+      useEffect(() => {
+        const salvas = lerJsonSeguro(perfilStorageKey('transactions'), null);
+        const reservasSalvas = lerJsonSeguro(perfilStorageKey('reservas'), null);
+        if (Array.isArray(salvas)) setTransactions(salvas);
+        if (Array.isArray(reservasSalvas)) setListaReservas(reservasSalvas);
+        registrarAnalytics('profile_loaded', { profileId: perfilAtivo.id });
+      }, [perfilAtivoId]);
 
       // Calcula o saldo dinâmico de cada reserva baseado nos aportes e retiradas
       const saldosPorReserva = {};
@@ -828,7 +935,7 @@
         const atualizadas = [...listaReservas, nova];
         setListaReservas(atualizadas);
         try {
-          localStorage.setItem('fc26_lista_reservas', JSON.stringify(atualizadas));
+          localStorage.setItem(perfilStorageKey('reservas'), JSON.stringify(atualizadas));
         } catch(e){}
         setIsModalNovaReservaOpen(false);
         showToast(`✓ Reserva "${nome}" criada com sucesso!`);
@@ -1189,7 +1296,7 @@
         }
         setTransactions(updatedList);
         try {
-          localStorage.setItem('fc26_transactions', JSON.stringify(updatedList));
+          localStorage.setItem(perfilStorageKey('transactions'), JSON.stringify(updatedList));
         } catch(e){}
 
         // Sincronização em Tempo Real na Nuvem via Google Apps Script (Multi-aparelho sem login)
@@ -1220,7 +1327,7 @@
         const updatedList = transactions.filter(t => t.id !== idToDelete);
         setTransactions(updatedList);
         try {
-          localStorage.setItem('fc26_transactions', JSON.stringify(updatedList));
+          localStorage.setItem(perfilStorageKey('transactions'), JSON.stringify(updatedList));
         } catch(e){}
         setIsModalOpen(false);
         setEditingTransaction(null);
@@ -1570,6 +1677,9 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
               </div>
             </div>
             <div className="flex items-center gap-2">
+              <button type="button" onClick={() => abrirAba('perfis')} className="text-[10px] font-bold px-2 py-1 rounded-full bg-blue-50 text-[#0F2C59] truncate max-w-[100px]" title="Perfil ativo">
+                👤 {perfilAtivo.nome}
+              </button>
               <span className="text-[11px] font-bold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 animate-pulse"></span>
                 Ativo
@@ -2685,10 +2795,100 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
               );
             })()}
 
-            {/* ABA 3: CONEXÃO COM BACKUP E CHAVE */}
+            {/* ABA 3: PERFIS, CALENDÁRIO COMPARTILHADO E ACESSO */}
+            {currentTab === 'perfis' && (
+              <div className="space-y-4">
+                <div className="bg-[#0F2C59] text-white rounded-3xl p-5 shadow-lg">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-amber-200 font-bold">Perfil financeiro ativo</p>
+                      <h2 className="text-xl font-serif font-bold mt-1">{perfilAtivo.nome}</h2>
+                      <p className="text-xs text-slate-300 mt-1">{perfilAtivo.email} · {perfilAtivo.papel}</p>
+                    </div>
+                    <span className="text-3xl">👤</span>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-3xl border border-slate-200 p-4 space-y-3">
+                  <div className="flex justify-between items-center">
+                    <h3 className="font-bold text-slate-800">Perfis isolados</h3>
+                    <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full font-bold">NAMESPACE LOCAL</span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">Lançamentos e reservas ficam separados por perfil neste dispositivo.</p>
+                  <div className="space-y-2">
+                    {perfis.map(p => (
+                      <button key={p.id} type="button" onClick={() => trocarPerfilFinanceiro(p.id)}
+                        className={`w-full flex items-center justify-between p-3 rounded-2xl border text-left transition ${p.id === perfilAtivo.id ? 'border-[#0F2C59] bg-blue-50' : 'border-slate-200 bg-slate-50'}`}>
+                        <span><strong className="block text-xs text-slate-800">{p.nome}</strong><small className="text-[10px] text-slate-500">{p.email}</small></span>
+                        <span className="text-[10px] font-bold text-slate-500">{p.papel}{p.id === perfilAtivo.id ? ' · ativo' : ''}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <form className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100" onSubmit={(e) => {
+                    e.preventDefault();
+                    const form = e.target;
+                    if (form.nome.value.trim() && form.email.value.trim()) criarPerfil(form.nome.value, form.email.value);
+                    form.reset();
+                  }}>
+                    <input name="nome" placeholder="Nome do perfil" className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs" required />
+                    <input name="email" type="email" placeholder="Email" className="p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs" required />
+                    <button className="col-span-2 py-2.5 bg-[#0F2C59] text-white rounded-xl font-bold text-xs">+ Criar perfil financeiro</button>
+                  </form>
+                </div>
+
+                <div className="bg-white rounded-3xl border border-slate-200 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div><h3 className="font-bold text-slate-800">Calendário do casal</h3><p className="text-[11px] text-slate-500">Compartilhe uma chave para sincronizar as escalas.</p></div>
+                    <span className="text-2xl">💑</span>
+                  </div>
+                  <button type="button" onClick={gerarConviteCasal} className="w-full py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-xs">Gerar convite compartilhável</button>
+                  {conviteCompartilhamento && <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-center"><p className="text-[10px] text-emerald-800 font-bold uppercase">Chave do casal</p><code className="text-sm font-bold tracking-widest text-emerald-900">{conviteCompartilhamento}</code><p className="text-[10px] text-emerald-700 mt-1">Use esta chave no Apps Script/backend quando disponível.</p></div>}
+                </div>
+
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-[11px] text-amber-900 leading-relaxed">
+                  <strong>Limite atual:</strong> esta versão é frontend estático. O isolamento funciona no navegador, mas não substitui autenticação, autorização ou criptografia no servidor. Para produção, conecte estes namespaces a Supabase/Firebase ou a um backend com RLS.
+                </div>
+              </div>
+            )}
+
+            {/* ABA 4: PAINEL ADMIN E ANALYTICS */}
+            {currentTab === 'admin' && adminAtivo && (
+              <div className="space-y-4">
+                <div className="bg-[#081B38] text-white rounded-3xl p-5 shadow-lg">
+                  <p className="text-[10px] uppercase tracking-widest text-amber-300 font-bold">Administração</p>
+                  <h2 className="text-xl font-serif font-bold mt-1">Acesso e analytics de marketing</h2>
+                  <p className="text-xs text-slate-300 mt-1">Visão local dos perfis, permissões e eventos capturados pela aplicação.</p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-white rounded-2xl border border-slate-200 p-4"><span className="text-[10px] text-slate-500 uppercase font-bold">Perfis</span><strong className="block text-2xl text-[#0F2C59]">{perfis.length}</strong></div>
+                  <div className="bg-white rounded-2xl border border-slate-200 p-4"><span className="text-[10px] text-slate-500 uppercase font-bold">Eventos</span><strong className="block text-2xl text-emerald-600">{eventoAnalytics.length}</strong></div>
+                </div>
+                <div className="bg-white rounded-3xl border border-slate-200 p-4 space-y-3">
+                  <h3 className="font-bold text-slate-800">Controle de acesso</h3>
+                  {perfis.map(p => <div key={p.id} className="flex items-center justify-between gap-2 py-2 border-b border-slate-100 last:border-0"><div><strong className="block text-xs">{p.nome}</strong><small className="text-[10px] text-slate-500">{p.email}</small></div><select value={p.papel} disabled={p.id === 'principal'} onChange={e => atualizarPermissaoPerfil(p.id, e.target.value)} className="p-2 border border-slate-200 rounded-lg text-xs"><option value="owner">Owner</option><option value="editor">Editor</option><option value="viewer">Visualizador</option></select></div>)}
+                </div>
+                <div className="bg-white rounded-3xl border border-slate-200 p-4">
+                  <div className="flex justify-between items-center mb-3"><h3 className="font-bold text-slate-800">Eventos recentes</h3><button type="button" onClick={() => { setEventoAnalytics([]); localStorage.removeItem('fc26_analytics_eventos'); }} className="text-[10px] text-rose-600 font-bold">Limpar</button></div>
+                  <div className="space-y-2 max-h-52 overflow-y-auto">{eventoAnalytics.slice(-12).reverse().map(evt => <div key={evt.id} className="flex justify-between text-[10px] border-b border-slate-100 pb-1"><span className="font-semibold text-slate-700">{evt.evento}</span><span className="text-slate-400">{new Date(evt.data).toLocaleString('pt-BR')}</span></div>)}</div>
+                </div>
+                <div className="bg-rose-50 border border-rose-200 rounded-2xl p-3 text-[11px] text-rose-900 leading-relaxed"><strong>Segurança:</strong> o modo admin é um controle de demonstração salvo no localStorage. Não use este painel para decisões de produção até existir autenticação server-side e regras de acesso no backend.</div>
+              </div>
+            )}
+
+            {/* ABA 5: CONEXÃO COM BACKUP E CHAVE */}
             {currentTab === 'config' && (
               <div className="bg-white p-5 rounded-3xl border border-slate-200 space-y-4 text-xs">
                 <h2 className="text-base font-serif font-bold text-slate-800">Conexão & Backup</h2>
+
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between gap-3">
+                  <div>
+                    <strong className="block text-slate-800">Painel administrativo local</strong>
+                    <span className="text-[10px] text-slate-500">Exibe permissões e eventos de marketing neste navegador.</span>
+                  </div>
+                  <button type="button" onClick={() => { setAdminAtivo(!adminAtivo); if (!adminAtivo) registrarAnalytics('admin_enabled'); }} className={`px-3 py-2 rounded-xl text-[10px] font-bold ${adminAtivo ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                    {adminAtivo ? 'Ativo' : 'Ativar'}
+                  </button>
+                </div>
                 
                 {/* Backup Rápido */}
                 <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-2">
@@ -3132,10 +3332,10 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
           )}
 
           {/* Barra de Navegação Inferior */}
-          <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-[#FDFBF7]/95 border-t border-slate-200/80 px-6 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex justify-around items-center z-20 backdrop-blur-md">
+          <nav className="fixed bottom-0 left-0 right-0 max-w-md mx-auto bg-[#FDFBF7]/95 border-t border-slate-200/80 px-2 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex justify-around items-center z-20 backdrop-blur-md overflow-x-auto">
             <button
               type="button"
-              onClick={() => setCurrentTab('dashboard')}
+              onClick={() => abrirAba('dashboard')}
               className={`flex flex-col items-center gap-0.5 text-[11px] font-medium transition ${currentTab === 'dashboard' ? 'text-[#0F2C59] font-bold' : 'text-slate-400'}`}
             >
               <span className="text-base">📊</span>
@@ -3143,7 +3343,7 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
             </button>
             <button
               type="button"
-              onClick={() => setCurrentTab('lancamentos')}
+              onClick={() => abrirAba('lancamentos')}
               className={`flex flex-col items-center gap-0.5 text-[11px] font-medium transition ${currentTab === 'lancamentos' ? 'text-[#0F2C59] font-bold' : 'text-slate-400'}`}
             >
               <span className="text-base">📝</span>
@@ -3151,12 +3351,28 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
             </button>
             <button
               type="button"
-              onClick={() => setCurrentTab('config')}
+              onClick={() => abrirAba('config')}
               className={`flex flex-col items-center gap-0.5 text-[11px] font-medium transition ${currentTab === 'config' ? 'text-[#0F2C59] font-bold' : 'text-slate-400'}`}
             >
               <span className="text-base">⚙️</span>
               <span>Conexão</span>
             </button>
+            <button
+              type="button"
+              onClick={() => abrirAba('perfis')}
+              className={`flex flex-col items-center gap-0.5 text-[11px] font-medium transition ${currentTab === 'perfis' ? 'text-[#0F2C59] font-bold' : 'text-slate-400'}`}
+            >
+              <span className="text-base">👥</span>
+              <span>Perfis</span>
+            </button>
+            {adminAtivo && <button
+              type="button"
+              onClick={() => abrirAba('admin')}
+              className={`flex flex-col items-center gap-0.5 text-[11px] font-medium transition ${currentTab === 'admin' ? 'text-[#0F2C59] font-bold' : 'text-slate-400'}`}
+            >
+              <span className="text-base">🛡️</span>
+              <span>Admin</span>
+            </button>}
           </nav>
 
         </div>
