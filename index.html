@@ -359,7 +359,9 @@
       const [conviteCompartilhamento, setConviteCompartilhamento] = useState(() => localStorage.getItem('fc26_convite_casal') || '');
       const perfilAtivo = perfis.find(p => p.id === perfilAtivoId) || perfis[0] || PERFIS_PADRAO[0];
       const [onboardingInvite, setOnboardingInvite] = useState(() => new URLSearchParams(window.location.search).get('invite') || '');
-      const isOwner = perfilAtivo.id === 'principal' && perfilAtivo.papel === 'owner' && !onboardingInvite;
+      const [cadastroUsuario, setCadastroUsuario] = useState(() => new URLSearchParams(window.location.search).get('cadastro') === 'usuario');
+      const onboardingMode = cadastroUsuario || Boolean(onboardingInvite);
+      const isOwner = perfilAtivo.id === 'principal' && perfilAtivo.papel === 'owner' && !onboardingMode;
       const adminAtivo = isOwner;
       const perfilStorageKey = (recurso) => chavePerfil(perfilAtivo.id, recurso);
       const [eventoAnalytics, setEventoAnalytics] = useState(() => lerJsonSeguro('fc26_analytics_eventos', []));
@@ -389,12 +391,13 @@
 
       const criarPerfil = (nome, email) => {
         const id = `perfil-${Date.now()}`;
-        const novoPerfil = { id, nome: nome.trim(), email: email.trim(), papel: 'viewer', cor: '#7C3AED', convite: onboardingInvite || null };
+        const novoPerfil = { id, nome: nome.trim(), email: email.trim(), papel: 'viewer', cor: '#7C3AED', convite: onboardingInvite || null, cadastro: 'usuario' };
         const atualizados = [...perfis, novoPerfil];
         setPerfis(atualizados);
         salvarJsonSeguro('fc26_perfis', atualizados);
         trocarPerfilFinanceiro(id);
         setOnboardingInvite('');
+        setCadastroUsuario(false);
         window.history.replaceState({}, document.title, window.location.pathname);
       };
 
@@ -416,7 +419,7 @@
       };
 
       const linkConvitePublico = conviteCompartilhamento
-        ? `${window.location.origin}${window.location.pathname}?invite=${encodeURIComponent(conviteCompartilhamento)}`
+        ? `${window.location.origin}${window.location.pathname}?cadastro=usuario&invite=${encodeURIComponent(conviteCompartilhamento)}`
         : '';
 
       const abrirAba = (aba) => {
@@ -2824,7 +2827,7 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                     <h3 className="font-bold text-slate-800">Perfis isolados</h3>
                     <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-1 rounded-full font-bold">NAMESPACE LOCAL</span>
                   </div>
-                  <p className="text-[11px] text-slate-500">{isOwner ? 'Lançamentos e reservas ficam separados por perfil neste dispositivo.' : 'Você está vendo apenas seu perfil e seus calendários pessoais/compartilhados.'}</p>
+                  <p className="text-[11px] text-slate-500">{onboardingMode ? 'Cadastro público separado: este acesso começa sem painel admin e terá apenas seus dados e calendários compartilhados.' : isOwner ? 'Lançamentos e reservas ficam separados por perfil neste dispositivo.' : 'Você está vendo apenas seu perfil e seus calendários pessoais/compartilhados.'}</p>
                   <div className="space-y-2">
                     {(isOwner ? perfis : [perfilAtivo]).map(p => (
                       <button key={p.id} type="button" onClick={() => trocarPerfilFinanceiro(p.id)}
@@ -2834,7 +2837,7 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                       </button>
                     ))}
                   </div>
-                  {(isOwner || onboardingInvite) && <form className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100" onSubmit={(e) => {
+                  {(isOwner || onboardingMode) && <form className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100" onSubmit={(e) => {
                     e.preventDefault();
                     const form = e.target;
                     if (form.nome.value.trim() && form.email.value.trim()) criarPerfil(form.nome.value, form.email.value);
@@ -2854,7 +2857,7 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                   {isOwner && <button type="button" onClick={gerarConviteCasal} className="w-full py-2.5 bg-emerald-600 text-white rounded-xl font-bold text-xs">Gerar link de convite público</button>}
                   {conviteCompartilhamento && isOwner && <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-center"><p className="text-[10px] text-emerald-800 font-bold uppercase">Link para o casal</p><code className="block text-[10px] break-all font-bold text-emerald-900">{linkConvitePublico}</code><button type="button" onClick={() => navigator.clipboard?.writeText(linkConvitePublico)} className="mt-2 text-[10px] text-emerald-700 underline font-bold">Copiar link</button></div>}
                   {!isOwner && <div className="p-3 bg-blue-50 border border-blue-200 rounded-xl text-[11px] text-blue-900">Calendários compartilhados aparecem aqui e no calendário principal. Apenas o proprietário pode gerar convites ou administrar acessos.</div>}
-                  {onboardingInvite && <div className="p-3 bg-violet-50 border border-violet-200 rounded-xl text-[11px] text-violet-900"><strong>Convite recebido:</strong> conclua o cadastro abaixo para criar seu acesso separado.</div>}
+                  {onboardingMode && <div className="p-3 bg-violet-50 border border-violet-200 rounded-xl text-[11px] text-violet-900"><strong>Onboarding de usuário:</strong> conclua o cadastro abaixo para criar seu acesso separado. O painel admin pertence somente ao proprietário.</div>}
                 </div>
 
                 <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 text-[11px] text-amber-900 leading-relaxed">
