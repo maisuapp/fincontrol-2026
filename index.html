@@ -1,10 +1,12 @@
 <!DOCTYPE html>
 <html lang="pt-BR" class="h-full">
+
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <title>Controle 2026 - FinControl</title>
-  
+
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -40,23 +42,26 @@
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script crossorigin="anonymous" src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  
+
   <!-- SheetJS para Exportação Nativa em Excel (.xlsx) -->
   <script crossorigin="anonymous" src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
-  
+
   <!-- Google Identity Services -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
-  
+
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap"
+    rel="stylesheet">
 
   <style>
     * {
       box-sizing: border-box;
       -webkit-tap-highlight-color: transparent;
     }
+
     body {
       margin: 0;
       padding: 0;
@@ -66,57 +71,122 @@
       -webkit-font-smoothing: antialiased;
       user-select: none;
     }
-    input, select, textarea {
+
+    input,
+    select,
+    textarea {
       font-size: 16px !important;
       user-select: auto;
     }
-        /* Animação de Shimmer / Brilho para a Logo FinControl */
+
+    /* Animação de Shimmer / Brilho para a Logo FinControl */
     @keyframes logoShimmer {
-      0% { transform: translateX(-150%) skewX(-20deg); }
-      30%, 100% { transform: translateX(200%) skewX(-20deg); }
+      0% {
+        transform: translateX(-150%) skewX(-20deg);
+      }
+
+      30%,
+      100% {
+        transform: translateX(200%) skewX(-20deg);
+      }
     }
+
     .animate-logo-shimmer {
       animation: logoShimmer 4s infinite ease-in-out;
     }
+
     @keyframes logoGlow {
-      0%, 100% { filter: drop-shadow(0 0 2px rgba(245, 158, 11, 0.4)); }
-      50% { filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.8)); }
+
+      0%,
+      100% {
+        filter: drop-shadow(0 0 2px rgba(245, 158, 11, 0.4));
+      }
+
+      50% {
+        filter: drop-shadow(0 0 6px rgba(245, 158, 11, 0.8));
+      }
     }
+
     .animate-logo-glow {
       animation: logoGlow 3s infinite ease-in-out;
     }
 
     /* Animação do Scanner Laser */
     @keyframes scanLaser {
-      0% { top: 5%; opacity: 0.9; }
-      50% { top: 85%; opacity: 1; filter: drop-shadow(0 0 8px #10B981); }
-      100% { top: 5%; opacity: 0.9; }
+      0% {
+        top: 5%;
+        opacity: 0.9;
+      }
+
+      50% {
+        top: 85%;
+        opacity: 1;
+        filter: drop-shadow(0 0 8px #10B981);
+      }
+
+      100% {
+        top: 5%;
+        opacity: 0.9;
+      }
     }
+
     .scanner-laser {
       animation: scanLaser 2s infinite ease-in-out;
     }
+
     /* Emojis animados */
     @keyframes headWobble {
-      0%, 100% { transform: translateY(0) rotate(0deg); }
-      25% { transform: translateY(-4px) rotate(-6deg); }
-      75% { transform: translateY(-2px) rotate(6deg); }
+
+      0%,
+      100% {
+        transform: translateY(0) rotate(0deg);
+      }
+
+      25% {
+        transform: translateY(-4px) rotate(-6deg);
+      }
+
+      75% {
+        transform: translateY(-2px) rotate(6deg);
+      }
     }
+
     .animate-wobble {
       display: inline-block;
       animation: headWobble 2.5s infinite ease-in-out;
     }
+
     @keyframes happyPulse {
-      0%, 100% { transform: scale(1); }
-      50% { transform: scale(1.15) rotate(4deg); }
+
+      0%,
+      100% {
+        transform: scale(1);
+      }
+
+      50% {
+        transform: scale(1.15) rotate(4deg);
+      }
     }
+
     .animate-happy {
       display: inline-block;
       animation: happyPulse 2s infinite ease-in-out;
     }
+
     @keyframes forexLinePulse {
-      0%, 100% { opacity: 0.78; filter: drop-shadow(0 0 0 rgba(37, 99, 235, 0)); }
-      50% { opacity: 1; filter: drop-shadow(0 0 5px rgba(37, 99, 235, 0.45)); }
+
+      0%,
+      100% {
+        opacity: 0.78;
+        filter: drop-shadow(0 0 0 rgba(37, 99, 235, 0));
+      }
+
+      50% {
+        opacity: 1;
+        filter: drop-shadow(0 0 5px rgba(37, 99, 235, 0.45));
+      }
     }
+
     .forex-line-live {
       animation: forexLinePulse 1.8s ease-in-out infinite;
       transition: opacity 0.35s ease;
@@ -124,7 +194,7 @@
   </style>
   <!-- Captura de Erros para nunca deixar a tela em branco silenciosa -->
   <script>
-    window.addEventListener('error', function(e) {
+    window.addEventListener('error', function (e) {
       console.error('Erro capturado:', e);
       var root = document.getElementById('root');
       if (root && root.children.length === 0) {
@@ -138,6 +208,7 @@
     });
   </script>
 </head>
+
 <body class="bg-[#F5F2EB] text-slate-800 min-h-screen flex flex-col">
   <div id="root" class="flex-1 flex flex-col"></div>
 
@@ -172,7 +243,7 @@
       { regex: /出雲市役所|市役所/i, nomeOficial: '出雲市役所' },
     ];
 
-    
+
     function isDespesaTx(t) {
       if (!t) return true;
       const str = String(t.tipo || '').trim().toLowerCase();
@@ -180,7 +251,7 @@
       return true;
     }
 
-    
+
     // AUDITORIA INTELIGENTE DE DUPLICIDADE EM TEMPO REAL
     function verificarDuplicidade(novoTx, listaExistente) {
       if (!novoTx || !novoTx.valor || !novoTx.estabelecimento) return null;
@@ -216,7 +287,7 @@
           return {
             existente: tx,
             diasDiff: Math.round(diasDiff),
-            motivo: diasDiff === 0 
+            motivo: diasDiff === 0
               ? 'Lançamento com mesmo valor e mesma loja registrado na mesma data!'
               : `Lançamento idêntico registrado com ${Math.round(diasDiff)} dia(s) de diferença!`
           };
@@ -228,24 +299,24 @@
     function padronizarNomeLoja(nomeBruto) {
       if (!nomeBruto || typeof nomeBruto !== 'string') return 'TRIAL スーパー';
       const limpo = nomeBruto.trim();
-      
+
       // Salvaguarda expressa para Companhia de Água e Esgoto de Izumo
       if (limpo.includes('水道') || limpo.includes('上下水道局')) {
         return '出雲市上下水道局';
       }
-      
+
       // Procura regra de unificação
       for (const regra of REGRAS_PADRONIZACAO) {
         if (regra.regex.test(limpo)) {
           return regra.nomeOficial;
         }
       }
-      
+
       // Se for apenas a palavra genérica "Supermercado", converte para o principal supermercado de rotina
       if (/^supermercado$/i.test(limpo)) {
         return 'TRIAL スーパー';
       }
-      
+
       // Capitaliza a primeira letra e remove pontuações estranhas
       return limpo.charAt(0).toUpperCase() + limpo.slice(1);
     }
@@ -434,7 +505,7 @@
       useEffect(() => {
         if (!isOwner && currentTab === 'admin') setCurrentTab('dashboard');
       }, [isOwner, currentTab]);
-      
+
       // Frases Estóicas focadas em Prosperidade, Razão e Disciplina Financeira
       const FRASES_ESTOICAS = [
         'A riqueza real é ter domínio sobre seus desejos. — Epicteto 🏛️',
@@ -472,7 +543,7 @@
             }));
           }
           return DADOS_INICIAIS;
-        } catch(e) {
+        } catch (e) {
           return DADOS_INICIAIS;
         }
       });
@@ -487,7 +558,7 @@
           try {
             const dt = new Date(d);
             if (!isNaN(dt.getTime())) return dt.toISOString().split('T')[0];
-          } catch(e){}
+          } catch (e) { }
           return String(d).substring(0, 10);
         };
 
@@ -567,10 +638,10 @@
                     }
                   }
                 }
-              } catch(e){}
+              } catch (e) { }
             }
 
-          } catch(err) {
+          } catch (err) {
             console.warn('Sincronização em segundo plano:', err);
           }
         };
@@ -882,7 +953,7 @@
         try {
           const local = localStorage.getItem(chavePerfil(perfilAtivoId, 'reservas')) || localStorage.getItem('fc26_lista_reservas');
           return local ? JSON.parse(local) : RESERVAS_PADRAO;
-        } catch(e) {
+        } catch (e) {
           return RESERVAS_PADRAO;
         }
       });
@@ -912,8 +983,8 @@
         listaReservas.forEach(r => {
           const rNome = r.nome.toLowerCase();
           const matchReserva = (
-            cat.includes(rNome) || 
-            estab.includes(rNome) || 
+            cat.includes(rNome) ||
+            estab.includes(rNome) ||
             (cat.includes('shaken') && rNome.includes('shaken')) ||
             (estab.includes('shaken') && rNome.includes('shaken')) ||
             (cat.includes('aluguel') && rNome.includes('aluguel')) ||
@@ -949,7 +1020,7 @@
         setListaReservas(atualizadas);
         try {
           localStorage.setItem(perfilStorageKey('reservas'), JSON.stringify(atualizadas));
-        } catch(e){}
+        } catch (e) { }
         setIsModalNovaReservaOpen(false);
         showToast(`✓ Reserva "${nome}" criada com sucesso!`);
       };
@@ -983,6 +1054,7 @@
         { id: '休み', label: '休み (Descanso)', bg: 'bg-[#f59e0b] text-slate-950 border-[#d97706]' },
         { id: '早退', label: '早退 (Saída cedo)', bg: 'bg-[#fef08a] text-slate-900 border-[#facc15]' },
         { id: '遅刻', label: '遅刻 (Atraso)', bg: 'bg-[#dc2626] text-white border-[#991b1b]' },
+        { id: '有', label: '有 (Yukiu)', bg: 'bg-[#16a34a] text-white border-[#15803d]' },
       ];
 
       // Calendário Dinâmico: Lê a data atual e permite navegar entre meses
@@ -1010,7 +1082,7 @@
           const obj = local ? JSON.parse(local) : {};
           if (!obj['2026_9']) obj['2026_9'] = ESCALA_SET_2026;
           return obj;
-        } catch(e) {
+        } catch (e) {
           return { '2026_9': ESCALA_SET_2026 };
         }
       });
@@ -1024,7 +1096,7 @@
         setPerfilEscala(novoPerfil);
         try {
           localStorage.setItem('fc26_perfil_escala', novoPerfil);
-        } catch(e){}
+        } catch (e) { }
       };
 
       const chaveMesAtual = `${perfilEscala}_${anoCalendario}_${mesCalendario + 1}`;
@@ -1072,7 +1144,7 @@
           const obj = local ? JSON.parse(local) : {};
           if (!obj['usuario_2026_9']) obj['usuario_2026_9'] = MEMOS_INICIAIS_SET;
           return obj;
-        } catch(e) {
+        } catch (e) {
           return { 'usuario_2026_9': MEMOS_INICIAIS_SET };
         }
       });
@@ -1096,7 +1168,7 @@
         try {
           const local = localStorage.getItem('fc26_config_turnos');
           return local ? JSON.parse(local) : CONFIG_TURNOS_PADRAO;
-        } catch(e) {
+        } catch (e) {
           return CONFIG_TURNOS_PADRAO;
         }
       });
@@ -1114,7 +1186,7 @@
         setTodosMemos(novosTodosMemos);
         try {
           localStorage.setItem('fc26_todos_memos', JSON.stringify(novosTodosMemos));
-        } catch(e){}
+        } catch (e) { }
 
         if (novoCarimbo !== null) {
           const novaEscalaDoMes = { ...escalaMes };
@@ -1130,7 +1202,7 @@
           setTodasEscalas(novasTodasEscalas);
           try {
             localStorage.setItem('fc26_todas_escalas', JSON.stringify(novasTodasEscalas));
-          } catch(e){}
+          } catch (e) { }
         }
 
         setIsModalMemoOpen(false);
@@ -1153,7 +1225,7 @@
           }).then(() => {
             showToast('✓ Sincronizado com o Google Sheets!');
           }).catch(e => console.warn(e));
-        } catch(e){}
+        } catch (e) { }
       };
 
       // Navegação de Meses
@@ -1205,7 +1277,7 @@
         setTodasEscalas(novasTodasEscalas);
         try {
           localStorage.setItem('fc26_todas_escalas', JSON.stringify(novasTodasEscalas));
-        } catch(e){}
+        } catch (e) { }
 
         // Envia a escala do casal para a Planilha Google em segundo plano
         try {
@@ -1221,7 +1293,7 @@
           }).then(() => {
             showToast('✓ Escala sincronizada na nuvem com seu parceiro(a)!');
           }).catch(e => console.warn(e));
-        } catch(e){}
+        } catch (e) { }
       };
       const [toastMessage, setToastMessage] = useState(null);
       const [geminiApiKey, setGeminiApiKey] = useState(localStorage.getItem('fc26_gemini_api_key') || '');
@@ -1271,7 +1343,7 @@
           const dataHoje = new Date().toISOString().split('T')[0];
           XLSX.writeFile(workbook, `Controle_Financeiro_2026_Backup_${dataHoje}.xlsx`);
           showToast('✓ Arquivo Excel (.xlsx) baixado com sucesso!');
-        } catch(err) {
+        } catch (err) {
           console.error(err);
           showToast('Erro ao exportar Excel: ' + err.message, true);
         }
@@ -1310,7 +1382,7 @@
         setTransactions(updatedList);
         try {
           localStorage.setItem(perfilStorageKey('transactions'), JSON.stringify(updatedList));
-        } catch(e){}
+        } catch (e) { }
 
         // Sincronização em Tempo Real na Nuvem via Google Apps Script (Multi-aparelho sem login)
         try {
@@ -1325,7 +1397,7 @@
           }).catch(err => {
             console.warn('Aviso sincronização:', err);
           });
-        } catch(e) {
+        } catch (e) {
           console.warn(e);
         }
       };
@@ -1341,7 +1413,7 @@
         setTransactions(updatedList);
         try {
           localStorage.setItem(perfilStorageKey('transactions'), JSON.stringify(updatedList));
-        } catch(e){}
+        } catch (e) { }
         setIsModalOpen(false);
         setEditingTransaction(null);
         showToast('Lançamento excluído localmente. Estornando na Planilha Google...');
@@ -1365,7 +1437,7 @@
           }).catch(err => {
             console.warn('Aviso ao excluir na nuvem:', err);
           });
-        } catch(err) {
+        } catch (err) {
           console.warn(err);
         }
       };
@@ -1389,9 +1461,9 @@
           const modelosValidos = (data.models || [])
             .filter(m => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent'))
             .map(m => m.name.replace('models/', ''));
-          
+
           showToast(`✓ Chave válida! ${modelosValidos.length} modelos de IA disponíveis.`);
-        } catch(err) {
+        } catch (err) {
           showToast('Erro: ' + err.message, true);
         } finally {
           setIsTestingKey(false);
@@ -1483,7 +1555,7 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                   await sleep(1500);
                 }
               }
-            } catch(netErr) {
+            } catch (netErr) {
               lastErr = netErr.message;
             }
           }
@@ -1496,13 +1568,13 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
 
           const d = await res.json();
           let rawText = d.candidates?.[0]?.content?.parts?.[0]?.text || '';
-          
+
           // Extração segura por regex do objeto JSON retornado no texto
           let parsed = {};
           try {
             const match = rawText.match(/\{[\s\S]*\}/);
             if (match) parsed = JSON.parse(match[0]);
-          } catch(e) {
+          } catch (e) {
             console.warn('Erro ao parsear JSON:', e);
           }
 
@@ -1518,7 +1590,7 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
           });
           setIsModalOpen(true);
           showToast(`✓ Comprovante lido: ${lojaPadronizada}!`);
-        } catch(err) {
+        } catch (err) {
           console.error(err);
           showToast('Aviso: ' + err.message, true);
           setEditingTransaction({
@@ -1567,7 +1639,7 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
 
       return (
         <div className="w-full max-w-md mx-auto min-h-screen flex flex-col bg-[#F5F2EB] relative pb-24 select-none">
-          
+
           {/* POPUP / BANNER DE ATUALIZAÇÃO EM TEMPO REAL */}
           {popupNotificacao && (
             <div className="fixed top-14 left-4 right-4 z-50 bg-[#0F2C59] text-white p-3.5 rounded-2xl shadow-2xl border-2 border-emerald-400/80 flex items-center justify-between animate-in slide-in-from-top duration-300">
@@ -1606,12 +1678,12 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
           {/* ANIMAÇÃO AVANÇADA DE SCANNER DE RECIBO COM IA */}
           {isScanning && (
             <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex flex-col items-center justify-center text-white p-6 animate-in fade-in">
-              
+
               {/* Moldura Holográfica do Recibo */}
               <div className="relative w-44 h-56 bg-white/10 rounded-2xl border-2 border-emerald-400/60 p-3 flex flex-col justify-between overflow-hidden shadow-[0_0_30px_rgba(16,185,129,0.3)] mb-5">
                 {/* Linha do Laser do Scanner */}
                 <div className="absolute left-0 right-0 h-1 bg-gradient-to-r from-transparent via-emerald-400 to-transparent scanner-laser"></div>
-                
+
                 {/* Linhas simulando itens do recibo */}
                 <div className="space-y-2 opacity-60">
                   <div className="h-2 bg-slate-300 rounded w-2/3 mx-auto"></div>
@@ -1650,16 +1722,16 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
               <span className="text-[9px] tracking-widest uppercase font-bold text-[#0F2C59] block">
                 Gestão Patrimonial Familiar • 2026
               </span>
-              
+
               <div className="flex flex-wrap items-center gap-2 mt-0.5">
-                
+
                 {/* LOGO ESTILIZADA E ANIMADA FinControl */}
                 <div className="flex items-center gap-1.5 group cursor-pointer">
                   {/* Brasão Animado com Shimmer e Pulso de Luz */}
                   <div className="relative w-7 h-7 rounded-xl bg-gradient-to-br from-[#0F2C59] via-[#1B3B6F] to-[#081B38] shadow-md border border-amber-400/40 flex items-center justify-center overflow-hidden shrink-0 animate-logo-glow">
                     {/* Linha de reflexo que corre pela logo */}
                     <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/30 to-transparent animate-logo-shimmer"></div>
-                    
+
                     {/* Ícone de Crescimento e Escudo Geométrico */}
                     <svg className="w-4 h-4 text-amber-300 relative z-10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M12 2L2 7l10 5 10-5-10-5z" />
@@ -1702,11 +1774,11 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
 
           {/* Conteúdo Principal */}
           <main className="p-4 flex-1 overflow-y-auto">
-            
+
             {/* ABA 1: DASHBOARD */}
             {currentTab === 'dashboard' && (
               <div className="space-y-4">
-                
+
                 {/* Card de Liquidez com EMOJI ANIMADO DE STATUS */}
                 <div className="bg-[#0F2C59] text-white rounded-3xl p-5 shadow-lg relative overflow-hidden">
                   {(() => {
@@ -1732,17 +1804,16 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                       <>
                         <div className="flex justify-between items-center mb-1">
                           <span className="text-[10px] uppercase tracking-wider text-blue-200 font-bold">Saldo Líquido Acumulado</span>
-                          
+
                           <div className={`flex items-center gap-1.5 ${badgeBg} px-2.5 py-0.5 rounded-full shadow-2xs`}>
                             <span className="text-sm animate-wobble">{badgeEmoji}</span>
                             <span className="text-[9px] font-bold uppercase tracking-wider text-white">{badgeTexto}</span>
                           </div>
                         </div>
-                        
+
                         <div className="flex items-baseline gap-2 my-2">
-                          <h2 className={`text-3xl sm:text-4xl font-extrabold tracking-tight ${
-                            saldo < 0 ? 'text-rose-300' : 'text-emerald-300'
-                          }`}>
+                          <h2 className={`text-3xl sm:text-4xl font-extrabold tracking-tight ${saldo < 0 ? 'text-rose-300' : 'text-emerald-300'
+                            }`}>
                             {saldo < 0 ? '-¥ ' : '+¥ '}{Math.abs(Math.round(saldo)).toLocaleString('ja-JP')}
                           </h2>
                           <span className="text-2xl animate-wobble">
@@ -1789,7 +1860,7 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                   </div>
                 </div>
 
-                
+
                 <button
                   type="button"
                   onClick={() => { setEditingTransaction(null); setIsModalOpen(true); }}
@@ -1897,9 +1968,8 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                           </div>
                           <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                             <div
-                              className={`h-full rounded-full transition-all duration-500 ${
-                                idx === 0 ? 'bg-[#0F2C59]' : 'bg-slate-400'
-                              }`}
+                              className={`h-full rounded-full transition-all duration-500 ${idx === 0 ? 'bg-[#0F2C59]' : 'bg-slate-400'
+                                }`}
                               style={{ width: `${Math.min(perc, 100)}%` }}
                             ></div>
                           </div>
@@ -1925,17 +1995,16 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
 
                   return (
                     <div className="bg-white rounded-3xl p-4 border border-slate-200/90 shadow-xs space-y-3">
-                      
+
                       {/* SELETOR DE PERFIL INDEPENDENTE (オスマン vs. シルレイ) */}
                       <div className="flex justify-between items-center bg-slate-100 p-1 rounded-2xl">
                         <button
                           type="button"
                           onClick={() => trocarPerfilEscala('usuario')}
-                          className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                            perfilEscala === 'usuario'
+                          className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${perfilEscala === 'usuario'
                               ? 'bg-white text-[#0F2C59] shadow-xs'
                               : 'text-slate-500 hover:text-slate-800'
-                          }`}
+                            }`}
                         >
                           <span>👤</span>
                           <span>オスマン</span>
@@ -1944,11 +2013,10 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                         <button
                           type="button"
                           onClick={() => trocarPerfilEscala('esposa')}
-                          className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${
-                            perfilEscala === 'esposa'
+                          className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${perfilEscala === 'esposa'
                               ? 'bg-white text-rose-600 shadow-xs'
                               : 'text-slate-500 hover:text-slate-800'
-                          }`}
+                            }`}
                         >
                           <span>👩</span>
                           <span>シルレイ</span>
@@ -1965,7 +2033,7 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                             {NOMES_MESES[mesCalendario]} {anoCalendario}
                           </h3>
                         </div>
-                        
+
                         <div className="text-right">
                           <span className="text-xs bg-[#86efac] text-emerald-950 font-bold px-2.5 py-1 rounded-full inline-flex items-center gap-1 border border-[#4ade80] shadow-2xs">
                             <span>休</span>
@@ -2020,17 +2088,16 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                             <div
                               key={'dia-' + dia}
                               onClick={() => setDiaSelecionadoMemo(dia)}
-                              className={`min-h-[58px] p-1 rounded-2xl flex flex-col justify-between items-center transition border select-none relative ${
-                                isSelecionado
+                              className={`min-h-[58px] p-1 rounded-2xl flex flex-col justify-between items-center transition border select-none relative ${isSelecionado
                                   ? 'ring-2 ring-emerald-500 bg-emerald-50/40 border-emerald-300 shadow-xs'
-                                  : isHoje 
-                                  ? 'ring-2 ring-[#0F2C59] bg-amber-50/70 border-amber-300 shadow-xs' 
-                                  : diaSemana === 0 
-                                  ? 'bg-rose-50/30 border-rose-100/70' 
-                                  : diaSemana === 6 
-                                  ? 'bg-blue-50/30 border-blue-100/70' 
-                                  : 'bg-white border-slate-100'
-                              }`}
+                                  : isHoje
+                                    ? 'ring-2 ring-[#0F2C59] bg-amber-50/70 border-amber-300 shadow-xs'
+                                    : diaSemana === 0
+                                      ? 'bg-rose-50/30 border-rose-100/70'
+                                      : diaSemana === 6
+                                        ? 'bg-blue-50/30 border-blue-100/70'
+                                        : 'bg-white border-slate-100'
+                                }`}
                             >
                               {/* 1. CLIQUE NO NÚMERO DO DIA: ABRE JANELA DE CONFIGURAÇÃO DO MEMO E MARCAÇÃO */}
                               <div className="w-full flex justify-between items-center px-0.5">
@@ -2046,14 +2113,12 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                                       showToast(`Modo Leitura: ative o 入力モード para editar o memo do dia ${dia}.`);
                                     }
                                   }}
-                                  className={`flex items-center gap-0.5 px-1 py-0.5 rounded-lg transition ${
-                                    modoEntrada ? 'hover:bg-slate-200/90 active:scale-95 cursor-pointer' : 'cursor-default'
-                                  }`}
+                                  className={`flex items-center gap-0.5 px-1 py-0.5 rounded-lg transition ${modoEntrada ? 'hover:bg-slate-200/90 active:scale-95 cursor-pointer' : 'cursor-default'
+                                    }`}
                                   title={modoEntrada ? `Clique para configurar memo e horário do dia ${dia}` : `Dia ${dia}`}
                                 >
-                                  <span className={`text-[12px] font-bold leading-none ${
-                                    diaSemana === 0 ? 'text-rose-600' : diaSemana === 6 ? 'text-blue-600' : 'text-slate-700'
-                                  }`}>
+                                  <span className={`text-[12px] font-bold leading-none ${diaSemana === 0 ? 'text-rose-600' : diaSemana === 6 ? 'text-blue-600' : 'text-slate-700'
+                                    }`}>
                                     {dia}
                                   </span>
                                   {/* Bolinha vermelha com kanji 祝 oficial do Japão */}
@@ -2076,9 +2141,8 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                                         setIsModalMemoOpen(true);
                                       }
                                     }}
-                                    className={`text-[8.5px] font-bold text-amber-950 bg-amber-100/90 px-1 py-0.5 rounded leading-none truncate max-w-[32px] border border-amber-300/50 ${
-                                      modoEntrada ? 'hover:bg-amber-200 cursor-pointer active:scale-95' : 'cursor-default'
-                                    }`}
+                                    className={`text-[8.5px] font-bold text-amber-950 bg-amber-100/90 px-1 py-0.5 rounded leading-none truncate max-w-[32px] border border-amber-300/50 ${modoEntrada ? 'hover:bg-amber-200 cursor-pointer active:scale-95' : 'cursor-default'
+                                      }`}
                                     title={`Marcação: ${mark}`}
                                   >
                                     {mark}
@@ -2097,9 +2161,8 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                                     showToast('Calendário bloqueado para edição. Ative o 入力モード para alterar folgas.');
                                   }
                                 }}
-                                className={`w-full flex-1 flex flex-col justify-center items-center my-0.5 transition ${
-                                  modoEntrada ? 'hover:opacity-90 active:scale-90 cursor-pointer' : 'cursor-default'
-                                }`}
+                                className={`w-full flex-1 flex flex-col justify-center items-center my-0.5 transition ${modoEntrada ? 'hover:opacity-90 active:scale-90 cursor-pointer' : 'cursor-default'
+                                  }`}
                                 title={modoEntrada ? `Clique direto para alternar ou aplicar carimbo no dia ${dia}` : 'Calendário bloqueado'}
                               >
                                 {carimbo ? (
@@ -2107,9 +2170,8 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                                     {carimbo}
                                   </span>
                                 ) : (
-                                  <span className={`w-full py-1 rounded-lg border border-dashed text-[10px] text-center ${
-                                    modoEntrada ? 'border-slate-300/80 text-slate-400 hover:border-[#0F2C59] hover:bg-slate-50' : 'border-transparent text-transparent'
-                                  }`}>
+                                  <span className={`w-full py-1 rounded-lg border border-dashed text-[10px] text-center ${modoEntrada ? 'border-slate-300/80 text-slate-400 hover:border-[#0F2C59] hover:bg-slate-50' : 'border-transparent text-transparent'
+                                    }`}>
                                     {modoEntrada ? '+' : '•'}
                                   </span>
                                 )}
@@ -2170,15 +2232,13 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                               setModoEntrada(novoModo);
                               showToast(novoModo ? '✏️ Modo Edição Ativo: clique no número para Memo ou no campo para Carimbo.' : '🔒 Calendário Bloqueado: modo somente leitura ativado.');
                             }}
-                            className={`w-11 h-6 rounded-full transition-colors relative flex items-center p-0.5 ${
-                              modoEntrada ? 'bg-emerald-600' : 'bg-slate-300'
-                            }`}
+                            className={`w-11 h-6 rounded-full transition-colors relative flex items-center p-0.5 ${modoEntrada ? 'bg-emerald-600' : 'bg-slate-300'
+                              }`}
                             title={modoEntrada ? 'Clique para BLOQUEAR edição do calendário' : 'Clique para HABILITAR edição e memos'}
                           >
                             <span
-                              className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform ${
-                                modoEntrada ? 'translate-x-5' : 'translate-x-0'
-                              }`}
+                              className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform ${modoEntrada ? 'translate-x-5' : 'translate-x-0'
+                                }`}
                             ></span>
                           </button>
                         </div>
@@ -2232,8 +2292,8 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                           <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
                             <span className="text-sm">🔮</span>
                             <span>
-                              {ehHojeOSelecionado 
-                                ? '今日のメモ :' 
+                              {ehHojeOSelecionado
+                                ? '今日のメモ :'
                                 : `メモ (${diaSelecionadoMemo} de ${NOMES_MESES[mesCalendario]}):`}
                             </span>
                           </div>
@@ -2266,8 +2326,8 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                         <div className="flex justify-between items-center text-[10px] font-bold text-slate-400">
                           <span>CARIMBO RÁPIDO (TOQUE PARA APLICAR NOS DIAS):</span>
                           {carimboAtivo !== null && (
-                            <button 
-                              type="button" 
+                            <button
+                              type="button"
                               onClick={() => setCarimboAtivo(null)}
                               className="text-[#0F2C59] underline font-bold"
                             >
@@ -2284,22 +2344,20 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                                 key={c.id}
                                 type="button"
                                 onClick={() => setCarimboAtivo(isSel ? null : c.id)}
-                                className={`px-2 py-1 rounded-lg text-[11px] font-bold transition active:scale-95 border ${
-                                  isSel ? 'bg-[#0F2C59] text-white border-[#0F2C59] shadow-xs' : 'bg-slate-100 text-slate-700 border-slate-200'
-                                }`}
+                                className={`px-2 py-1 rounded-lg text-[11px] font-bold transition active:scale-95 border ${isSel ? 'bg-[#0F2C59] text-white border-[#0F2C59] shadow-xs' : 'bg-slate-100 text-slate-700 border-slate-200'
+                                  }`}
                               >
                                 {c.label}
                               </button>
                             );
                           })}
-                          
+
                           {/* Opção 外出 direta */}
                           <button
                             type="button"
                             onClick={() => setCarimboAtivo(carimboAtivo === '外出' ? null : '外出')}
-                            className={`px-2 py-1 rounded-lg text-[11px] font-bold transition active:scale-95 border ${
-                              carimboAtivo === '外出' ? 'bg-[#831843] text-white border-[#831843] shadow-xs' : 'bg-[#fbcfe8] text-[#831843] border-[#f472b6]'
-                            }`}
+                            className={`px-2 py-1 rounded-lg text-[11px] font-bold transition active:scale-95 border ${carimboAtivo === '外出' ? 'bg-[#831843] text-white border-[#831843] shadow-xs' : 'bg-[#fbcfe8] text-[#831843] border-[#f472b6]'
+                              }`}
                           >
                             外出 (Saída)
                           </button>
@@ -2307,9 +2365,8 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                           <button
                             type="button"
                             onClick={() => setCarimboAtivo(carimboAtivo === '' ? null : '')}
-                            className={`px-2 py-1 rounded-lg text-[11px] font-bold transition active:scale-95 border ${
-                              carimboAtivo === '' ? 'bg-rose-600 text-white border-rose-600' : 'bg-slate-100 text-slate-500 border-slate-200'
-                            }`}
+                            className={`px-2 py-1 rounded-lg text-[11px] font-bold transition active:scale-95 border ${carimboAtivo === '' ? 'bg-rose-600 text-white border-rose-600' : 'bg-slate-100 text-slate-500 border-slate-200'
+                              }`}
                             title="Toque em um dia para apagar o carimbo"
                           >
                             ✕ Limpar
@@ -2435,11 +2492,10 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                               key={p.id}
                               type="button"
                               onClick={() => { setParSelecionado(p.id); setIsInvertido(false); }}
-                              className={`px-2.5 py-1 rounded-xl font-bold whitespace-nowrap transition text-[11px] ${
-                                isSel
+                              className={`px-2.5 py-1 rounded-xl font-bold whitespace-nowrap transition text-[11px] ${isSel
                                   ? 'bg-[#0F2C59] text-white shadow-2xs'
                                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                              }`}
+                                }`}
                             >
                               {p.label}
                             </button>
@@ -2526,11 +2582,10 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                               key={tf}
                               type="button"
                               onClick={() => setTimeframeSelecionado(tf)}
-                              className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition active:scale-95 text-center ${
-                                isSel
+                              className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition active:scale-95 text-center ${isSel
                                   ? 'bg-[#0F2C59] text-white shadow-xs'
                                   : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                              }`}
+                                }`}
                             >
                               {tf === 'LIVE' ? 'Ao vivo' : tf}
                             </button>
@@ -2591,7 +2646,7 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                                 onClick={() => setValorConversao(val)}
                                 className="px-2 py-0.5 bg-white hover:bg-slate-200 active:scale-95 border border-slate-200 rounded-lg text-[10px] font-semibold text-slate-700 transition shadow-2xs"
                               >
-                                +{parseInt(val) >= 1000 ? `${parseInt(val)/1000}k` : val}
+                                +{parseInt(val) >= 1000 ? `${parseInt(val) / 1000}k` : val}
                               </button>
                             ))}
                           </div>
@@ -2631,7 +2686,7 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                       <h2 className="text-base font-serif font-bold text-slate-900">Lançamentos</h2>
                       <p className="text-[11px] text-slate-400">Filtre, pesquise ou edite qualquer registro</p>
                     </div>
-                    
+
                     <button
                       type="button"
                       onClick={handleExportExcel}
@@ -2782,7 +2837,7 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                               <p className="text-slate-400 text-[11px] truncate">{t.data} • {t.categoria}</p>
                             </div>
                           </div>
-                          
+
                           <div className="flex items-center gap-2 shrink-0">
                             <span className={`font-bold text-sm ${isDespesaTx(t) ? 'text-slate-900' : 'text-emerald-600'}`}>
                               {isDespesaTx(t) ? '-' : '+'}¥ {Math.round(t.valor).toLocaleString('ja-JP')}
@@ -2902,7 +2957,7 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                   </div>
                   {isOwner ? <span className="px-3 py-2 rounded-xl text-[10px] font-bold bg-emerald-600 text-white">Disponível para proprietário</span> : <span className="px-3 py-2 rounded-xl text-[10px] font-bold bg-slate-200 text-slate-600">Somente proprietário</span>}
                 </div>
-                
+
                 {/* Backup Rápido */}
                 <div className="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-2xl space-y-2">
                   <div className="flex items-center gap-2 text-emerald-900 font-bold">
@@ -2938,7 +2993,7 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                       Obter chave grátis ↗
                     </a>
                   </div>
-                  
+
                   <input
                     type="password"
                     placeholder="AIzaSy..."
@@ -2959,7 +3014,7 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                   >
                     {isTestingKey ? 'Testando conexão...' : '⚡ Testar se a Chave está funcionando'}
                   </button>
-                  
+
                   <div className="mt-2 p-3 bg-blue-50 rounded-xl border border-blue-200/60 text-blue-900 text-[11px] leading-relaxed">
                     <strong>Padronização Automática:</strong><br />
                     O aplicativo agora converte automaticamente nomes de comprovantes (ex: TRIAL, Lawson, Anri, Hospital) para o padrão oficial, sem deixar nomes genéricos como "Supermercado".
@@ -2999,7 +3054,7 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
           {alertaDuplicado && (
             <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
               <div className="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl border-2 border-amber-400 space-y-4">
-                
+
                 <div className="flex items-center gap-2.5 text-amber-600">
                   <span className="text-2xl animate-bounce">⚠️</span>
                   <div>
@@ -3069,7 +3124,7 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
             </div>
           )}
 
-          
+
           {/* MODAL DE EDIÇÃO DO DIA (MEMO & MARCAÇÃO) - Estilo Screenshot 2 */}
           {isModalMemoOpen && diaEditando && (() => {
             const infoDia = memosDoMes[diaEditando] || {};
@@ -3078,7 +3133,7 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
             return (
               <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
                 <div className="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
-                  
+
                   {/* Cabeçalho do Dia */}
                   <div className="flex justify-between items-center pb-2 border-b border-rose-500">
                     <button
@@ -3098,7 +3153,7 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                     const form = e.target;
                     handleSalvarMemo(diaEditando, form.mark.value, form.memo.value, form.turno.value);
                   }} className="space-y-3.5 text-xs">
-                    
+
                     {/* Seleção de Turno do Dia */}
                     <div>
                       <label className="block font-bold text-slate-500 mb-1 uppercase text-[10px]">
@@ -3197,7 +3252,7 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
           {isModalConfigTurnosOpen && (
             <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
               <div className="bg-white w-full max-w-sm rounded-3xl p-5 shadow-2xl border border-slate-200 space-y-4 max-h-[90vh] overflow-y-auto">
-                
+
                 {/* Cabeçalho de Configurações */}
                 <div className="flex justify-between items-center pb-2 border-b border-amber-400">
                   <button
@@ -3217,7 +3272,7 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                     <span className="text-[11px] font-bold bg-amber-100 text-amber-900 px-2 py-0.5 rounded-md inline-block mb-2">
                       勤務名入力 (Personalizar Nomes e Abreviações)
                     </span>
-                    
+
                     <div className="space-y-2">
                       {configTurnos.map((t, idx) => (
                         <div key={t.id} className="flex items-center gap-2 p-1.5 bg-slate-50 rounded-xl border border-slate-200">
@@ -3424,9 +3479,9 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
 
       return (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end justify-center animate-in fade-in duration-200">
-          
+
           <div className="bg-[#FDFBF7] w-full max-w-md rounded-t-[28px] shadow-2xl flex flex-col max-h-[90vh] max-h-[90dvh] border-t border-slate-200">
-            
+
             {/* Header Fixo */}
             <div className="px-5 py-3.5 border-b border-slate-200 flex justify-between items-center shrink-0">
               <div className="flex items-center gap-2">
@@ -3435,7 +3490,7 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                   {isEditing ? 'Editar Lançamento' : 'Novo Lançamento'}
                 </h3>
               </div>
-              <button 
+              <button
                 type="button"
                 onClick={onClose}
                 className="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 hover:bg-slate-200 text-sm font-bold active:scale-95"
@@ -3446,33 +3501,30 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
 
             {/* Conteúdo com Rolagem */}
             <form onSubmit={submit} className="flex-1 overflow-y-auto px-5 py-3.5 space-y-4">
-              
+
               {/* Segmentação: Despesa / Receita / Reserva */}
               <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-2xl text-xs font-bold">
                 <button
                   type="button"
                   onClick={() => { setTipo('Despesa'); setCategoria(CATEGORIAS_DESPESA[0].id); }}
-                  className={`py-2 rounded-xl transition ${
-                    tipo === 'Despesa' ? 'bg-white text-rose-600 shadow-xs' : 'text-slate-500'
-                  }`}
+                  className={`py-2 rounded-xl transition ${tipo === 'Despesa' ? 'bg-white text-rose-600 shadow-xs' : 'text-slate-500'
+                    }`}
                 >
                   ↓ Despesa
                 </button>
                 <button
                   type="button"
                   onClick={() => { setTipo('Receita'); setCategoria(CATEGORIAS_RECEITA[0].id); }}
-                  className={`py-2 rounded-xl transition ${
-                    tipo === 'Receita' ? 'bg-white text-emerald-600 shadow-xs' : 'text-slate-500'
-                  }`}
+                  className={`py-2 rounded-xl transition ${tipo === 'Receita' ? 'bg-white text-emerald-600 shadow-xs' : 'text-slate-500'
+                    }`}
                 >
                   ↑ Receita
                 </button>
                 <button
                   type="button"
                   onClick={() => { setTipo('Aporte Reserva'); setCategoria('Reserva: Shaken (Inspeção Veicular)'); }}
-                  className={`py-2 rounded-xl transition ${
-                    tipo.includes('Reserva') ? 'bg-[#0F2C59] text-white shadow-xs' : 'text-slate-500'
-                  }`}
+                  className={`py-2 rounded-xl transition ${tipo.includes('Reserva') ? 'bg-[#0F2C59] text-white shadow-xs' : 'text-slate-500'
+                    }`}
                 >
                   🏦 Reserva
                 </button>
@@ -3484,18 +3536,16 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                   <button
                     type="button"
                     onClick={() => setTipo('Aporte Reserva')}
-                    className={`py-1.5 rounded-lg transition ${
-                      tipo === 'Aporte Reserva' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600'
-                    }`}
+                    className={`py-1.5 rounded-lg transition ${tipo === 'Aporte Reserva' ? 'bg-emerald-600 text-white shadow-2xs' : 'text-slate-600'
+                      }`}
                   >
                     + Depositar (Guardar)
                   </button>
                   <button
                     type="button"
                     onClick={() => setTipo('Retirada Reserva')}
-                    className={`py-1.5 rounded-lg transition ${
-                      tipo === 'Retirada Reserva' ? 'bg-amber-600 text-white shadow-2xs' : 'text-slate-600'
-                    }`}
+                    className={`py-1.5 rounded-lg transition ${tipo === 'Retirada Reserva' ? 'bg-amber-600 text-white shadow-2xs' : 'text-slate-600'
+                      }`}
                   >
                     - Retirar (Usar)
                   </button>
@@ -3541,11 +3591,10 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                           key={r.id}
                           type="button"
                           onClick={() => { setCategoria(r.id); setEstabelecimento(r.label); }}
-                          className={`flex items-center gap-1.5 p-2 rounded-xl text-xs font-medium text-left transition active:scale-95 border ${
-                            isSelected
+                          className={`flex items-center gap-1.5 p-2 rounded-xl text-xs font-medium text-left transition active:scale-95 border ${isSelected
                               ? 'bg-[#0F2C59] text-white border-[#0F2C59] font-bold shadow-xs'
                               : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                          }`}
+                            }`}
                         >
                           <span className="text-sm shrink-0">{r.icon}</span>
                           <span className="truncate">{r.label}</span>
@@ -3560,11 +3609,10 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                           key={c.id}
                           type="button"
                           onClick={() => setCategoria(c.id)}
-                          className={`flex items-center gap-1.5 p-2 rounded-xl text-xs font-medium text-left transition active:scale-95 border ${
-                            isSelected
+                          className={`flex items-center gap-1.5 p-2 rounded-xl text-xs font-medium text-left transition active:scale-95 border ${isSelected
                               ? 'bg-[#0F2C59] text-white border-[#0F2C59] font-bold shadow-xs'
                               : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                          }`}
+                            }`}
                         >
                           <span className="text-sm shrink-0">{c.icon}</span>
                           <span className="truncate">{c.label}</span>
@@ -3635,4 +3683,5 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
   </script>
 </body>
+
 </html>
