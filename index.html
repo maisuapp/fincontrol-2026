@@ -245,10 +245,26 @@
 
 
     function isDespesaTx(t) {
-      if (!t) return true;
+      if (!t) return false;
       const str = String(t.tipo || '').trim().toLowerCase();
-      if (str.includes('receita') || str.includes('retirada') || str.includes('resgate')) return false;
-      return true;
+      const cat = String(t.categoria || '').trim().toLowerCase();
+      if (str.includes('receita') || str.includes('retirada') || str.includes('resgate') || str.includes('aporte') || str.includes('reserva') || cat.includes('reserva')) return false;
+      return str.includes('despesa') || (!str.includes('receita') && !str.includes('aporte') && !str.includes('retirada'));
+    }
+
+    function isReceitaTx(t) {
+      if (!t) return false;
+      const str = String(t.tipo || '').trim().toLowerCase();
+      if (str.includes('aporte') || str.includes('retirada') || str.includes('resgate')) return false;
+      return str.includes('receita');
+    }
+
+    function isReservaTx(t) {
+      if (!t) return false;
+      const str = String(t.tipo || '').trim().toLowerCase();
+      const cat = String(t.categoria || '').trim().toLowerCase();
+      const estab = String(t.estabelecimento || '').trim().toLowerCase();
+      return str.includes('reserva') || str.includes('aporte') || str.includes('retirada') || str.includes('resgate') || cat.includes('reserva') || estab.includes('reserva') || !!t.reservaId;
     }
 
 
@@ -258,6 +274,12 @@
       const novoValor = parseFloat(novoTx.valor) || 0;
       const novaLoja = padronizarNomeLoja(novoTx.estabelecimento).toLowerCase();
       const novaData = novoTx.data || '';
+      const novoTipo = String(novoTx.tipo || '').toLowerCase();
+
+      // Transações de caixinha de reserva permitem múltiplos aportes/retiradas regulares
+      if (novoTipo.includes('reserva') || novoTipo.includes('aporte') || novoTipo.includes('retirada')) {
+        return null;
+      }
 
       for (const tx of listaExistente) {
         if (novoTx.id && tx.id === novoTx.id) continue;
@@ -265,6 +287,10 @@
         const valExistente = parseFloat(tx.valor) || 0;
         const lojaExistente = padronizarNomeLoja(tx.estabelecimento).toLowerCase();
         const dataExistente = tx.data || '';
+        const tipoExistente = String(tx.tipo || '').toLowerCase();
+
+        // Só considera duplicidade para transações de mesma natureza
+        if (novoTipo !== tipoExistente) continue;
 
         const mesmoValor = Math.abs(valExistente - novoValor) === 0;
         const mesmaLoja = (
@@ -531,16 +557,36 @@
         setPopupNotificacao({ local, autor, hora: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) });
         setTimeout(() => setPopupNotificacao(null), 6000);
       };
+      const [exclusoes, setExclusoes] = useState(() => {
+        return lerJsonSeguro(chavePerfil(perfilAtivoId, 'exclusoes'), []);
+      });
+
       const [transactions, setTransactions] = useState(() => {
         try {
+          const exclSalvas = lerJsonSeguro(chavePerfil(perfilAtivoId, 'exclusoes'), []);
+          const exclIds = new Set(exclSalvas.map(e => e.id));
+          const sigsExcluidasCount = {};
+          exclSalvas.forEach(e => {
+            if (e.sig) sigsExcluidasCount[e.sig] = (sigsExcluidasCount[e.sig] || 0) + 1;
+          });
+
           const local = localStorage.getItem(chavePerfil(perfilAtivoId, 'transactions')) || localStorage.getItem('fc26_transactions');
           if (local) {
             const parsed = JSON.parse(local);
-            // Aplica a padronização em lançamentos antigos salvos
-            return parsed.map(t => ({
-              ...t,
-              estabelecimento: padronizarNomeLoja(t.estabelecimento)
-            }));
+            return parsed
+              .filter(t => {
+                if (exclIds.has(t.id)) return false;
+                const sig = `${t.data}_${t.valor}_${padronizarNomeLoja(t.estabelecimento)}_${t.tipo || ''}`.toLowerCase();
+                if (sigsExcluidasCount[sig] && sigsExcluidasCount[sig] > 0) {
+                  sigsExcluidasCount[sig]--;
+                  return false;
+                }
+                return true;
+              })
+              .map(t => ({
+                ...t,
+                estabelecimento: padronizarNomeLoja(t.estabelecimento)
+              }));
           }
           return DADOS_INICIAIS;
         } catch (e) {
@@ -578,48 +624,82 @@
             }
 
             if (Array.isArray(rows) && rows.length > 1) {
-              const carregadas = rows.slice(1).map((r, i) => ({
-                id: 'sheet-' + (i + 2),
-                data: formatData(r[0]),
-                mes: r[1] || '',
-                tipo: (() => {
-                  const raw = String(r[2] || '').trim();
-                  const low = raw.toLowerCase();
+              // Carrega lista atualizada de exclusões salvas para garantir estorno permanente
+              const exclusoesAtuais = lerJsonSeguro(perfilStorageKey('exclusoes'), []);
+              const excluidosIds = new Set(exclusoesAtuais.map(e => e.id));
+              const sigsExcluidasCount = {};
+              exclusoesAtuais.forEach(e => {
+                if (e.sig) sigsExcluidasCount[e.sig] = (sigsExcluidasCount[e.sig] || 0) + 1;
+              });
+
+              const carregadas = rows.slice(1).map((r, i) => {
+                const dt = formatData(r[0]);
+                const rawTipo = String(r[2] || '').trim();
+                const low = rawTipo.toLowerCase();
+                const tipo = (() => {
                   if (low.includes('retirada') || low.includes('resgate')) return 'Retirada Reserva';
                   if (low.includes('aporte') || low.includes('depósito') || low.includes('deposito')) return 'Aporte Reserva';
                   if (low.includes('receita')) return 'Receita';
                   return 'Despesa';
-                })(),
-                categoria: r[3] || 'Supermercado & Feira',
-                valor: parseFloat(r[4]) || 0,
-                estabelecimento: padronizarNomeLoja(r[5]),
-                observacoes: r[6] || ''
-              })).filter(t => t.data && t.valor > 0).reverse();
+                })();
+                const valor = parseFloat(r[4]) || 0;
+                const estabelecimento = padronizarNomeLoja(r[5]);
+                const sig = `${dt}_${valor}_${estabelecimento}_${tipo}`.toLowerCase();
 
-              // Detecta se houve novos lançamentos vindos de outro aparelho e protege contra duplicatas
-              if (carregadas.length > 0) {
-                const vistos = new Set();
-                const unicos = [];
-                for (const item of carregadas) {
-                  const sig = `${item.data}_${item.valor}_${padronizarNomeLoja(item.estabelecimento)}`.toLowerCase();
-                  if (!vistos.has(sig)) {
-                    vistos.add(sig);
-                    unicos.push(item);
-                  } else if (item.estabelecimento.includes('KINEZO') && unicos.filter(u => u.data === item.data && u.valor === item.valor && u.estabelecimento.includes('KINEZO')).length < 2) {
-                    // Preserva os dois ingressos reais de 1100 do cinema Kinezo
-                    unicos.push(item);
-                  }
-                }
+                return {
+                  id: 'sheet-' + (i + 2),
+                  data: dt,
+                  mes: r[1] || '',
+                  tipo: tipo,
+                  categoria: r[3] || 'Supermercado & Feira',
+                  valor: valor,
+                  estabelecimento: estabelecimento,
+                  observacoes: r[6] || '',
+                  sig: sig
+                };
+              }).filter(t => t.data && t.valor > 0);
 
-                const totalAtual = transactions.length;
-                if (ehPolling && unicos.length > totalAtual) {
-                  mostrarAlertaAtualizacao('Lançamentos Financeiros');
+              // Filtra exclusões do usuário (ordem original da planilha)
+              const filtradas = [];
+              for (const item of carregadas) {
+                if (excluidosIds.has(item.id)) {
+                  continue; // Excluído por ID
                 }
-                setTransactions(unicos);
-                localStorage.setItem(perfilStorageKey('transactions'), JSON.stringify(unicos));
-                if (!ehPolling) {
-                  showToast(`✓ Sincronizado com o Drive: ${unicos.length} lançamentos limpos!`);
+                if (sigsExcluidasCount[item.sig] && sigsExcluidasCount[item.sig] > 0) {
+                  sigsExcluidasCount[item.sig]--;
+                  continue; // Excluído por assinatura persistente
                 }
+                filtradas.push(item);
+              }
+
+              // Inverte para ter os mais recentes no topo
+              filtradas.reverse();
+
+              // Preserva lançamentos criados localmente (prefixo 'tx-') que ainda estão pendentes de atualização na nuvem
+              const salvasLocal = lerJsonSeguro(perfilStorageKey('transactions'), transactions) || [];
+              const pendentesLocais = salvasLocal.filter(t => t.id && t.id.startsWith('tx-'));
+
+              const reconciliadas = [...filtradas];
+              for (const pendente of pendentesLocais) {
+                if (excluidosIds.has(pendente.id)) continue;
+                const pendenteSig = `${pendente.data}_${pendente.valor}_${padronizarNomeLoja(pendente.estabelecimento)}_${pendente.tipo}`.toLowerCase();
+                if (sigsExcluidasCount[pendenteSig] > 0) continue;
+
+                // Se já estiver na planilha, foi conciliado; senão mantém no topo
+                const jaNaPlanilha = filtradas.some(f => f.sig === pendenteSig);
+                if (!jaNaPlanilha) {
+                  reconciliadas.unshift(pendente);
+                }
+              }
+
+              const totalAtual = transactions.length;
+              if (ehPolling && reconciliadas.length > totalAtual) {
+                mostrarAlertaAtualizacao('Lançamentos Financeiros');
+              }
+              setTransactions(reconciliadas);
+              localStorage.setItem(perfilStorageKey('transactions'), JSON.stringify(reconciliadas));
+              if (!ehPolling) {
+                showToast(`✓ Sincronizado com o Drive: ${reconciliadas.length} lançamentos!`);
               }
             }
 
@@ -961,17 +1041,35 @@
       const [isModalNovaReservaOpen, setIsModalNovaReservaOpen] = useState(false);
 
       useEffect(() => {
+        const exclSalvas = lerJsonSeguro(perfilStorageKey('exclusoes'), []);
+        const exclIds = new Set(exclSalvas.map(e => e.id));
+        const sigsExcluidasCount = {};
+        exclSalvas.forEach(e => {
+          if (e.sig) sigsExcluidasCount[e.sig] = (sigsExcluidasCount[e.sig] || 0) + 1;
+        });
+
         const salvas = lerJsonSeguro(perfilStorageKey('transactions'), null);
         const reservasSalvas = lerJsonSeguro(perfilStorageKey('reservas'), null);
-        if (Array.isArray(salvas)) setTransactions(salvas);
+        if (Array.isArray(salvas)) {
+          setTransactions(salvas.filter(t => {
+            if (exclIds.has(t.id)) return false;
+            const sig = `${t.data}_${t.valor}_${padronizarNomeLoja(t.estabelecimento)}_${t.tipo || ''}`.toLowerCase();
+            if (sigsExcluidasCount[sig] && sigsExcluidasCount[sig] > 0) {
+              sigsExcluidasCount[sig]--;
+              return false;
+            }
+            return true;
+          }));
+        }
         if (Array.isArray(reservasSalvas)) setListaReservas(reservasSalvas);
+        if (Array.isArray(exclSalvas)) setExclusoes(exclSalvas);
         registrarAnalytics('profile_loaded', { profileId: perfilAtivo.id });
       }, [perfilAtivoId]);
 
-      // Calcula o saldo dinâmico de cada reserva baseado nos aportes e retiradas
+      // Calcula o saldo dinâmico de cada reserva baseado no saldoInicial + aportes e retiradas
       const saldosPorReserva = {};
       listaReservas.forEach(r => {
-        saldosPorReserva[r.id] = r.saldoInicial || 0;
+        saldosPorReserva[r.id] = parseFloat(r.saldoInicial) || 0;
       });
 
       transactions.forEach(t => {
@@ -979,26 +1077,28 @@
         const tipo = String(t.tipo || '').toLowerCase();
         const estab = String(t.estabelecimento || '').toLowerCase();
         const val = parseFloat(t.valor) || 0;
+        if (!val) return;
 
         listaReservas.forEach(r => {
           const rNome = r.nome.toLowerCase();
           const matchReserva = (
-            cat.includes(rNome) ||
-            estab.includes(rNome) ||
-            (cat.includes('shaken') && rNome.includes('shaken')) ||
-            (estab.includes('shaken') && rNome.includes('shaken')) ||
-            (cat.includes('aluguel') && rNome.includes('aluguel')) ||
-            (estab.includes('aluguel') && rNome.includes('aluguel')) ||
-            (cat.includes('emergência') && rNome.includes('emergência')) ||
-            (cat.includes('emergencia') && rNome.includes('emergencia')) ||
-            (estab.includes('emergência') && rNome.includes('emergência')) ||
-            (estab.includes('emergencia') && rNome.includes('emergencia'))
+            (t.reservaId && t.reservaId === r.id) ||
+            cat === `reserva: ${rNome}` ||
+            cat === rNome ||
+            estab === rNome ||
+            (cat.includes('reserva') && cat.includes(rNome)) ||
+            (estab.includes('reserva') && estab.includes(rNome)) ||
+            (r.id === 'res-shaken' && (cat.includes('shaken') || estab.includes('shaken'))) ||
+            (r.id === 'res-aluguel' && (cat.includes('renovação') || estab.includes('renovação') || (cat.includes('aluguel') && (cat.includes('reserva') || cat.includes('contrato'))))) ||
+            (r.id === 'res-emergencia' && (cat.includes('emerg') || estab.includes('emerg')))
           );
 
           if (matchReserva) {
-            if (tipo.includes('aporte') || tipo.includes('depósito') || tipo.includes('deposito')) {
+            // Entradas de recursos na reserva (Aporte, Depósito ou Receitas direcionadas)
+            if (tipo.includes('aporte') || tipo.includes('depósito') || tipo.includes('deposito') || tipo.includes('receita') || tipo.includes('entrada')) {
               saldosPorReserva[r.id] = (saldosPorReserva[r.id] || 0) + val;
-            } else if (tipo.includes('retirada') || tipo.includes('resgate')) {
+            } else if (tipo.includes('retirada') || tipo.includes('resgate') || (tipo.includes('despesa') && cat.includes('reserva'))) {
+              // Saídas/Uso dos recursos guardados na reserva
               saldosPorReserva[r.id] = (saldosPorReserva[r.id] || 0) - val;
             }
           }
@@ -1023,6 +1123,18 @@
         } catch (e) { }
         setIsModalNovaReservaOpen(false);
         showToast(`✓ Reserva "${nome}" criada com sucesso!`);
+      };
+
+      const handleExcluirReserva = (reservaId) => {
+        const res = listaReservas.find(r => r.id === reservaId);
+        if (!res) return;
+        if (!confirm(`Deseja remover a caixinha de reserva "${res.nome}"?`)) return;
+        const atualizadas = listaReservas.filter(r => r.id !== reservaId);
+        setListaReservas(atualizadas);
+        try {
+          localStorage.setItem(perfilStorageKey('reservas'), JSON.stringify(atualizadas));
+        } catch (e) { }
+        showToast(`✓ Reserva "${res.nome}" removida.`);
       };
 
       // Abre o modal diretamente para Aporte (+) ou Retirada (-) em uma reserva
@@ -1373,25 +1485,38 @@
         let updatedList;
         if (editingTransaction && editingTransaction.id) {
           updatedList = transactions.map(t => t.id === editingTransaction.id ? { ...dadosPadronizados, id: t.id } : t);
-          showToast('Lançamento atualizado!');
+          showToast('✓ Lançamento atualizado!');
         } else {
           const newTx = { ...dadosPadronizados, id: 'tx-' + Date.now() };
           updatedList = [newTx, ...transactions];
-          showToast('Lançamento registrado com sucesso!');
+          showToast('✓ Lançamento registrado com sucesso!');
         }
         setTransactions(updatedList);
         try {
           localStorage.setItem(perfilStorageKey('transactions'), JSON.stringify(updatedList));
         } catch (e) { }
 
+        // Remove da lista de exclusões caso o usuário esteja re-cadastrando o mesmo item
+        const exclAtuais = lerJsonSeguro(perfilStorageKey('exclusoes'), []);
+        const sig = `${dadosPadronizados.data}_${dadosPadronizados.valor}_${padronizarNomeLoja(dadosPadronizados.estabelecimento)}_${dadosPadronizados.tipo || ''}`.toLowerCase();
+        const exclAtualizadas = exclAtuais.filter(e => e.sig !== sig && (!editingTransaction || e.id !== editingTransaction.id));
+        setExclusoes(exclAtualizadas);
+        try {
+          localStorage.setItem(perfilStorageKey('exclusoes'), JSON.stringify(exclAtualizadas));
+        } catch (e) { }
+
         // Sincronização em Tempo Real na Nuvem via Google Apps Script (Multi-aparelho sem login)
         try {
-          // Envia em segundo plano para a planilha no Google Drive
+          const dtObj = new Date(dadosPadronizados.data + 'T12:00:00');
+          const mesNome = NOMES_MESES[dtObj.getMonth()] || '';
           fetch(APPS_SCRIPT_URL, {
             method: 'POST',
             mode: 'no-cors', // Garante compatibilidade imediata sem bloquear no CORS
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify(dadosPadronizados)
+            body: JSON.stringify({
+              ...dadosPadronizados,
+              mes: dadosPadronizados.mes || mesNome
+            })
           }).then(() => {
             showToast('✓ Gravado na Planilha Google Drive em tempo real!');
           }).catch(err => {
@@ -1406,9 +1531,20 @@
         const itemParaExcluir = transactions.find(t => t.id === idToDelete);
         if (!itemParaExcluir) return;
 
-        if (!confirm(`Deseja realmente excluir e estornar o lançamento de ¥ ${Math.round(itemParaExcluir.valor).toLocaleString('ja-JP')} (${itemParaExcluir.estabelecimento})?`)) return;
+        if (!confirm(`Deseja realmente excluir o lançamento de ¥ ${Math.round(itemParaExcluir.valor).toLocaleString('ja-JP')} (${itemParaExcluir.estabelecimento})?`)) return;
 
-        // 1. Atualização local imediata
+        // 1. Gera assinatura única do item para exclusão persistente
+        const sig = `${itemParaExcluir.data}_${itemParaExcluir.valor}_${padronizarNomeLoja(itemParaExcluir.estabelecimento)}_${itemParaExcluir.tipo || ''}`.toLowerCase();
+        
+        // 2. Registra na lista de exclusões persistente para nunca reaparecer nas sincronizações
+        const exclAtuais = lerJsonSeguro(perfilStorageKey('exclusoes'), []);
+        const novasExcl = [...exclAtuais, { id: idToDelete, sig, dataExclusao: Date.now() }];
+        setExclusoes(novasExcl);
+        try {
+          localStorage.setItem(perfilStorageKey('exclusoes'), JSON.stringify(novasExcl));
+        } catch (e) { }
+
+        // 3. Atualização local imediata
         const updatedList = transactions.filter(t => t.id !== idToDelete);
         setTransactions(updatedList);
         try {
@@ -1416,30 +1552,8 @@
         } catch (e) { }
         setIsModalOpen(false);
         setEditingTransaction(null);
-        showToast('Lançamento excluído localmente. Estornando na Planilha Google...');
-
-        // 2. Dispara a exclusão e estorno real na Planilha Google via Apps Script
-        try {
-          fetch(APPS_SCRIPT_URL, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({
-              action: 'delete_row',
-              data: itemParaExcluir.data,
-              valor: itemParaExcluir.valor,
-              estabelecimento: itemParaExcluir.estabelecimento,
-              tipo: itemParaExcluir.tipo,
-              categoria: itemParaExcluir.categoria
-            })
-          }).then(() => {
-            showToast('✓ Lançamento estornado e excluído da Planilha Google!');
-          }).catch(err => {
-            console.warn('Aviso ao excluir na nuvem:', err);
-          });
-        } catch (err) {
-          console.warn(err);
-        }
+        showToast('✓ Lançamento excluído com sucesso!');
+        // Não enviamos delete_row para o Apps Script pois o script da planilha faria appendRow (duplicando a despesa na planilha)
       };
 
       // Testar chave Gemini consultando diretamente a lista de modelos ativos da sua conta
@@ -1608,8 +1722,8 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
       };
 
       // Totais calculados dinamicamente em tempo real a partir de todos os registros da planilha
-      const receitasTotais = transactions.filter(t => !isDespesaTx(t)).reduce((acc, t) => acc + (t.valor || 0), 0) || 3984901;
-      const despesasTotais = transactions.filter(t => isDespesaTx(t)).reduce((acc, t) => acc + (t.valor || 0), 0) || 4186382;
+      const receitasTotais = transactions.filter(t => isReceitaTx(t)).reduce((acc, t) => acc + (parseFloat(t.valor) || 0), 0) || 3984901;
+      const despesasTotais = transactions.filter(t => isDespesaTx(t)).reduce((acc, t) => acc + (parseFloat(t.valor) || 0), 0) || 4186382;
       const saldo = receitasTotais - despesasTotais;
 
       // CÁLCULOS DINÂMICOS EM TEMPO REAL PARA O MÊS EM ANDAMENTO
@@ -1939,6 +2053,16 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                               <span>-</span>
                               <span>Retirar</span>
                             </button>
+                            {!['res-shaken', 'res-aluguel', 'res-emergencia'].includes(res.id) && (
+                              <button
+                                type="button"
+                                onClick={() => handleExcluirReserva(res.id)}
+                                className="w-7 h-7 flex items-center justify-center rounded-xl bg-slate-100 hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition text-xs font-bold"
+                                title="Remover esta Caixinha"
+                              >
+                                ✕
+                              </button>
+                            )}
                           </div>
                         </div>
                       );
@@ -2681,20 +2805,24 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
             {currentTab === 'lancamentos' && (() => {
               const listaFiltrada = transactions.filter((t) => {
                 const isDesp = isDespesaTx(t);
+                const isRec = isReceitaTx(t);
+                const isRes = isReservaTx(t);
                 if (filtroTipo === 'despesa' && !isDesp) return false;
-                if (filtroTipo === 'receita' && isDesp) return false;
+                if (filtroTipo === 'receita' && !isRec) return false;
+                if (filtroTipo === 'reserva' && !isRes) return false;
                 if (filtroCategoria !== 'todas' && t.categoria !== filtroCategoria) return false;
                 if (filtroMes !== 'todos' && (!t.data || !t.data.includes(filtroMes))) return false;
                 if (termoBusca.trim()) {
                   const busca = termoBusca.toLowerCase().trim();
-                  const conteudo = `${t.estabelecimento} ${t.categoria} ${t.data} ${t.observacoes || ''}`.toLowerCase();
+                  const conteudo = `${t.estabelecimento} ${t.categoria} ${t.data} ${t.tipo || ''} ${t.observacoes || ''}`.toLowerCase();
                   if (!conteudo.includes(busca)) return false;
                 }
                 return true;
               });
 
-              const subtotalDespesas = listaFiltrada.filter(t => isDespesaTx(t)).reduce((acc, t) => acc + (t.valor || 0), 0);
-              const subtotalReceitas = listaFiltrada.filter(t => !isDespesaTx(t)).reduce((acc, t) => acc + (t.valor || 0), 0);
+              const subtotalDespesas = listaFiltrada.filter(t => isDespesaTx(t)).reduce((acc, t) => acc + (parseFloat(t.valor) || 0), 0);
+              const subtotalReceitas = listaFiltrada.filter(t => isReceitaTx(t)).reduce((acc, t) => acc + (parseFloat(t.valor) || 0), 0);
+              const subtotalReservas = listaFiltrada.filter(t => isReservaTx(t)).reduce((acc, t) => acc + (parseFloat(t.valor) || 0), 0);
               const temFiltroAtivo = filtroTipo !== 'todos' || filtroCategoria !== 'todas' || filtroMes !== 'todos' || termoBusca.trim() !== '';
               const todasCategorias = Array.from(new Set(transactions.map(t => t.categoria).filter(Boolean))).sort();
 
@@ -2739,27 +2867,34 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                       )}
                     </div>
 
-                    <div className="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-semibold">
+                    <div className="grid grid-cols-4 gap-1 bg-slate-100 p-1 rounded-xl text-[11px] font-semibold">
                       <button
                         type="button"
                         onClick={() => setFiltroTipo('todos')}
                         className={`py-1.5 rounded-lg transition ${filtroTipo === 'todos' ? 'bg-white text-[#0F2C59] shadow-xs font-bold' : 'text-slate-500'}`}
                       >
-                        Todos ({transactions.length})
+                        Todos
                       </button>
                       <button
                         type="button"
                         onClick={() => setFiltroTipo('despesa')}
                         className={`py-1.5 rounded-lg transition ${filtroTipo === 'despesa' ? 'bg-white text-rose-600 shadow-xs font-bold' : 'text-slate-500'}`}
                       >
-                        ↓ Despesas
+                        ↓ Desp
                       </button>
                       <button
                         type="button"
                         onClick={() => setFiltroTipo('receita')}
                         className={`py-1.5 rounded-lg transition ${filtroTipo === 'receita' ? 'bg-white text-emerald-600 shadow-xs font-bold' : 'text-slate-500'}`}
                       >
-                        ↑ Receitas
+                        ↑ Rec
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFiltroTipo('reserva')}
+                        className={`py-1.5 rounded-lg transition ${filtroTipo === 'reserva' ? 'bg-white text-blue-700 shadow-xs font-bold' : 'text-slate-500'}`}
+                      >
+                        🏦 Reserva
                       </button>
                     </div>
 
@@ -2772,7 +2907,10 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                           className="w-full p-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:border-[#0F2C59] font-medium text-slate-700"
                         >
                           <option value="todos">Todos os meses</option>
-                          <option value="-09-">Setembro (Atual)</option>
+                          <option value="-12-">Dezembro</option>
+                          <option value="-11-">Novembro</option>
+                          <option value="-10-">Outubro (Atual)</option>
+                          <option value="-09-">Setembro</option>
                           <option value="-08-">Agosto</option>
                           <option value="-07-">Julho</option>
                           <option value="-06-">Junho</option>
@@ -2808,6 +2946,9 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                         {filtroTipo === 'receita' && (
                           <span className="text-emerald-600 font-bold ml-1.5">• Total: +¥ {subtotalReceitas.toLocaleString('ja-JP')}</span>
                         )}
+                        {filtroTipo === 'reserva' && (
+                          <span className="text-blue-700 font-bold ml-1.5">• Total: ¥ {subtotalReservas.toLocaleString('ja-JP')}</span>
+                        )}
                         {filtroTipo === 'todos' && (
                           <span className="text-slate-700 font-bold ml-1.5">
                             • Desp: ¥ {subtotalDespesas.toLocaleString('ja-JP')}
@@ -2841,30 +2982,40 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                         <p>Tente ajustar os filtros acima.</p>
                       </div>
                     ) : (
-                      listaFiltrada.map((t) => (
-                        <div
-                          key={t.id}
-                          onClick={() => { setEditingTransaction(t); setIsModalOpen(true); }}
-                          className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs flex justify-between items-center text-xs active:bg-slate-50 transition cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 font-bold text-sm ${isDespesaTx(t) ? 'bg-rose-50 text-rose-600' : 'bg-emerald-50 text-emerald-600'}`}>
-                              {isDespesaTx(t) ? '↓' : '↑'}
-                            </div>
-                            <div className="min-w-0">
-                              <h4 className="font-bold text-slate-800 text-sm truncate">{t.estabelecimento}</h4>
-                              <p className="text-slate-400 text-[11px] truncate">{t.data} • {t.categoria}</p>
-                            </div>
-                          </div>
+                      listaFiltrada.map((t) => {
+                        const isRes = isReservaTx(t);
+                        const isRec = isReceitaTx(t);
+                        const isAporte = String(t.tipo || '').toLowerCase().includes('aporte') || (isRes && isRec);
+                        const badgeBg = isRes ? 'bg-blue-50 text-[#0F2C59]' : (isRec ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600');
+                        const iconText = isRes ? (isAporte ? '🏦+' : '🏦-') : (isRec ? '↑' : '↓');
+                        const valColor = isRes ? 'text-[#0F2C59]' : (isRec ? 'text-emerald-600' : 'text-slate-900');
+                        const sinal = isRes ? (isAporte ? '+' : '-') : (isRec ? '+' : '-');
 
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className={`font-bold text-sm ${isDespesaTx(t) ? 'text-slate-900' : 'text-emerald-600'}`}>
-                              {isDespesaTx(t) ? '-' : '+'}¥ {Math.round(t.valor).toLocaleString('ja-JP')}
-                            </span>
-                            <span className="text-slate-400 text-sm font-bold pl-1">›</span>
+                        return (
+                          <div
+                            key={t.id}
+                            onClick={() => { setEditingTransaction(t); setIsModalOpen(true); }}
+                            className="bg-white p-3 rounded-2xl border border-slate-200/80 shadow-xs flex justify-between items-center text-xs active:bg-slate-50 transition cursor-pointer"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                              <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 font-bold text-xs ${badgeBg}`}>
+                                {iconText}
+                              </div>
+                              <div className="min-w-0">
+                                <h4 className="font-bold text-slate-800 text-sm truncate">{t.estabelecimento}</h4>
+                                <p className="text-slate-400 text-[11px] truncate">{t.data} • {t.categoria}</p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className={`font-bold text-sm ${valColor}`}>
+                                {sinal}¥ {Math.round(t.valor).toLocaleString('ja-JP')}
+                              </span>
+                              <span className="text-slate-400 text-sm font-bold pl-1">›</span>
+                            </div>
                           </div>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
 
@@ -3419,6 +3570,7 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
               onSave={handleSave}
               onDelete={handleDelete}
               initialData={editingTransaction}
+              listaReservas={listaReservas}
             />
           )}
 
@@ -3473,10 +3625,11 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
     /**
      * Modal Otimizado para Mobile
      */
-    function OneTapModal({ onClose, onSave, onDelete, initialData }) {
+    function OneTapModal({ onClose, onSave, onDelete, initialData, listaReservas = [] }) {
       const isEditing = !!(initialData && initialData.id);
       const [tipo, setTipo] = useState(initialData?.tipo || 'Despesa');
       const [valor, setValor] = useState(initialData?.valor ? String(initialData.valor) : '');
+      const [reservaId, setReservaId] = useState(initialData?.reservaId || '');
       const [categoria, setCategoria] = useState(initialData?.categoria || 'Supermercado & Feira');
       const [estabelecimento, setEstabelecimento] = useState(initialData?.estabelecimento || '');
       const [data, setData] = useState(initialData?.data || new Date().toISOString().split('T')[0]);
@@ -3490,12 +3643,15 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
           alert('Por favor, informe um valor numérico válido.');
           return;
         }
+        const isRes = tipo.includes('Reserva');
+        const defaultLoja = isRes ? ((listaReservas && listaReservas[0]?.nome) || 'Reserva') : 'TRIAL スーパー';
         onSave({
           data,
           tipo,
           categoria,
           valor: num,
-          estabelecimento: estabelecimento.trim() || 'TRIAL スーパー'
+          estabelecimento: estabelecimento.trim() || defaultLoja,
+          reservaId: isRes ? (reservaId || initialData?.reservaId) : undefined
         });
         onClose();
       };
@@ -3545,7 +3701,13 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                 </button>
                 <button
                   type="button"
-                  onClick={() => { setTipo('Aporte Reserva'); setCategoria('Reserva: Shaken (Inspeção Veicular)'); }}
+                  onClick={() => {
+                    setTipo('Aporte Reserva');
+                    const r0 = (listaReservas && listaReservas[0]) ? listaReservas[0] : { id: 'res-shaken', nome: 'Shaken (Inspeção Veicular)' };
+                    setCategoria(`Reserva: ${r0.nome}`);
+                    setEstabelecimento(r0.nome);
+                    setReservaId(r0.id);
+                  }}
                   className={`py-2 rounded-xl transition ${tipo.includes('Reserva') ? 'bg-[#0F2C59] text-white shadow-xs' : 'text-slate-500'
                     }`}
                 >
@@ -3602,25 +3764,29 @@ Retorne exclusivamente o JSON, sem crases markdown.`;
                 </label>
                 <div className="grid grid-cols-2 gap-1.5 max-h-44 overflow-y-auto pr-1">
                   {tipo.includes('Reserva') ? (
-                    // Exibe as Caixinhas de Reserva Cadastradas
-                    [
-                      { id: 'Reserva: Shaken (Inspeção Veicular)', label: 'Shaken (Carro)', icon: '🚗' },
-                      { id: 'Reserva: Renovação Contrato Aluguel', label: 'Renovação Aluguel', icon: '🏠' },
-                      { id: 'Reserva: Reserva de Emergência', label: 'Reserva Emergência', icon: '🛡️' },
-                    ].map((r) => {
-                      const isSelected = categoria === r.id;
+                    // Exibe todas as Caixinhas de Reserva cadastradas dinamicamente
+                    (listaReservas && listaReservas.length > 0 ? listaReservas : [
+                      { id: 'res-shaken', nome: 'Shaken (Inspeção Veicular)', icone: '🚗' },
+                      { id: 'res-aluguel', nome: 'Renovação Contrato Aluguel', icone: '🏠' },
+                      { id: 'res-emergencia', nome: 'Reserva de Emergência', icone: '🛡️' },
+                    ]).map((r) => {
+                      const isSelected = categoria === `Reserva: ${r.nome}` || categoria === r.nome || reservaId === r.id;
                       return (
                         <button
                           key={r.id}
                           type="button"
-                          onClick={() => { setCategoria(r.id); setEstabelecimento(r.label); }}
+                          onClick={() => {
+                            setCategoria(`Reserva: ${r.nome}`);
+                            setEstabelecimento(r.nome);
+                            setReservaId(r.id);
+                          }}
                           className={`flex items-center gap-1.5 p-2 rounded-xl text-xs font-medium text-left transition active:scale-95 border ${isSelected
                             ? 'bg-[#0F2C59] text-white border-[#0F2C59] font-bold shadow-xs'
                             : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
                             }`}
                         >
-                          <span className="text-sm shrink-0">{r.icon}</span>
-                          <span className="truncate">{r.label}</span>
+                          <span className="text-sm shrink-0">{r.icone || '🏦'}</span>
+                          <span className="truncate">{r.nome}</span>
                         </button>
                       );
                     })
